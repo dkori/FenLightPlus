@@ -111,6 +111,8 @@ class Navigator:
 		self.end_directory()
 
 	def my_content(self):
+		if s.simkl_user_active():
+			self.add({'mode': 'navigator.simkl_content'}, 'Simkl', 'simkl')
 		if trakt_user_active():
 			self.add({'mode': 'navigator.trakt_collections'}, 'Trakt Collection', 'trakt')
 			self.add({'mode': 'navigator.trakt_watchlists'}, 'Trakt Watchlist', 'trakt')
@@ -118,7 +120,7 @@ class Navigator:
 			self.add({'mode': 'trakt.list.get_trakt_lists', 'list_type': 'liked_lists', 'category_name': 'Liked Lists'}, 'Trakt Liked Lists', 'trakt')
 			self.add({'mode': 'navigator.trakt_favorites', 'category_name': 'Favorites'}, 'Trakt Favorites', 'trakt')
 			self.add({'mode': 'navigator.trakt_recommendations', 'category_name': 'Recommended'}, 'Trakt Recommended', 'trakt')
-			self.add({'mode': 'build_my_calendar'}, 'Trakt Calendar', 'trakt')
+			if s.tracking_provider() == 'trakt': self.add({'mode': 'build_my_calendar'}, 'Trakt Calendar', 'trakt')
 		if s.tmdb_user_active():
 			self.add({'mode': 'tmdb.list.get_tmdb_lists', 'list_type': 'my_lists', 'category_name': 'My TMDB Lists'}, 'TMDB My Lists', 'tmdb')
 			
@@ -166,6 +168,26 @@ class Navigator:
 		self.add({'mode': 'build_tvshow_list', 'action': 'trakt_favorites', 'category_name': 'Favorite TV Shows'}, 'TV Shows', 'trakt')
 		self.end_directory()
 
+	def simkl_content(self):
+		self.category_name = 'Simkl'
+		self.add({'mode': 'navigator.simkl_status', 'status': 'watching', 'name': 'Watching'}, 'Watching (Continue Watching)', 'simkl')
+		self.add({'mode': 'navigator.simkl_status', 'status': 'plantowatch', 'name': 'Plan to Watch'}, 'Plan to Watch', 'simkl')
+		self.add({'mode': 'navigator.simkl_status', 'status': 'completed', 'name': 'Completed'}, 'Completed', 'simkl')
+		self.add({'mode': 'navigator.simkl_status', 'status': 'hold', 'name': 'On Hold'}, 'On Hold', 'simkl')
+		self.add({'mode': 'navigator.simkl_status', 'status': 'dropped', 'name': 'Dropped'}, 'Dropped', 'simkl')
+		if s.tracking_provider() == 'simkl': self.add({'mode': 'build_my_calendar'}, 'Simkl Calendar', 'simkl')
+		self.end_directory()
+
+	def simkl_status(self):
+		status = self.params_get('status', 'completed')
+		name = self.params_get('name', 'Simkl')
+		action = 'simkl_%s' % status
+		# Movies have no Watching/On Hold buckets on Simkl.
+		if status not in ('watching', 'hold'):
+			self.add({'mode': 'build_movie_list', 'action': action, 'category_name': '%s Movies' % name}, 'Movies', 'movies')
+		self.add({'mode': 'build_tvshow_list', 'action': action, 'category_name': '%s TV Shows & Anime' % name}, 'TV Shows & Anime', 'tv')
+		self.end_directory()
+
 	def people(self):
 		self.add({'mode': 'build_tmdb_people', 'action': 'popular', 'isFolder': 'false', 'name': 'Popular'}, 'Popular', 'popular')
 		self.add({'mode': 'build_tmdb_people', 'action': 'day', 'isFolder': 'false', 'name': 'Trending'}, 'Trending', 'trending')
@@ -198,6 +220,8 @@ class Navigator:
 			self.add({'mode': 'navigator.set_view_modes'}, 'Set Views', 'settings2')
 		self.add({'mode': 'navigator.changelog_utils'}, 'Changelog & Log Utils', 'settings2')
 		self.add({'mode': 'build_next_episode_manager'}, 'TV Shows Progress Manager', 'settings2')
+		if trakt_user_active() and s.simkl_user_active():
+			self.add({'mode': 'simkl.import_from_trakt', 'isFolder': 'false'}, 'Import Trakt Data to Simkl', 'simkl')
 		self.add({'mode': 'navigator.shortcut_folders'}, 'Shortcut Folders Manager', 'settings2')
 		self.add({'mode': 'navigator.maintenance'}, 'Database & Cache Maintenance', 'settings2')
 		self.add({'mode': 'navigator.update_utils'}, 'Update Utilities', 'settings2')
@@ -215,6 +239,7 @@ class Navigator:
 		self.add({'mode': 'clear_cache', 'cache': 'meta', 'isFolder': 'false'}, 'Clear Meta Cache', 'settings')
 		self.add({'mode': 'clear_cache', 'cache': 'list', 'isFolder': 'false'}, 'Clear Lists Cache', 'settings')
 		self.add({'mode': 'clear_cache', 'cache': 'trakt', 'isFolder': 'false'}, 'Clear Trakt Cache', 'settings')
+		self.add({'mode': 'clear_cache', 'cache': 'simkl', 'isFolder': 'false'}, 'Clear Simkl Cache', 'settings')
 		self.add({'mode': 'clear_cache', 'cache': 'imdb', 'isFolder': 'false'}, 'Clear IMDb Cache', 'settings')
 		self.add({'mode': 'clear_cache', 'cache': 'internal_scrapers', 'isFolder': 'false'}, 'Clear Internal Scrapers Cache', 'settings')
 		self.add({'mode': 'clear_cache', 'cache': 'external_scrapers', 'isFolder': 'false'}, 'Clear External Scrapers Cache', 'settings')

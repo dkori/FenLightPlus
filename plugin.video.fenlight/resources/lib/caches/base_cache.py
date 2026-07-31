@@ -15,6 +15,7 @@ navigator_db = translatePath(path_join(database_path_raw, 'navigator.db'))
 watched_db = translatePath(path_join(database_path_raw, 'watched.db'))
 favorites_db = translatePath(path_join(database_path_raw, 'favourites.db'))
 trakt_db = translatePath(path_join(database_path_raw, 'traktcache.db'))
+simkl_db = translatePath(path_join(database_path_raw, 'simklcache.db'))
 maincache_db = translatePath(path_join(database_path_raw, 'maincache.db'))
 lists_db = translatePath(path_join(database_path_raw, 'lists.db'))
 discover_db = translatePath(path_join(database_path_raw, 'discover.db'))
@@ -24,10 +25,10 @@ external_db = translatePath(path_join(database_path_raw, 'external.db'))
 settings_db = translatePath(path_join(database_path_raw, 'settings.db'))
 episode_groups_db = translatePath(path_join(database_path_raw, 'episode_groups.db'))
 database_timeout = 20
-current_dbs = ('navigator.db', 'watched.db', 'favourites.db', 'traktcache.db', 'maincache.db', 'lists.db',
+current_dbs = ('navigator.db', 'watched.db', 'favourites.db', 'traktcache.db', 'simklcache.db', 'maincache.db', 'lists.db',
 				'discover.db', 'metacache.db', 'debridcache.db', 'external.db', 'settings.db', 'episode_groups.db')
 database_locations = {
-'navigator_db': navigator_db, 'watched_db': watched_db, 'favorites_db': favorites_db, 'settings_db': settings_db, 'trakt_db': trakt_db, 'maincache_db': maincache_db,
+'navigator_db': navigator_db, 'watched_db': watched_db, 'favorites_db': favorites_db, 'settings_db': settings_db, 'trakt_db': trakt_db, 'simkl_db': simkl_db, 'maincache_db': maincache_db,
 'metacache_db': metacache_db, 'debridcache_db': debridcache_db, 'lists_db': lists_db, 'discover_db': discover_db, 'external_db': external_db, 'episode_groups_db': episode_groups_db
 		}
 integrity_check = {
@@ -36,6 +37,7 @@ integrity_check = {
 'watched_db': ('watched_status', 'progress'),
 'favorites_db': ('favourites',),
 'trakt_db': ('trakt_data', 'watched_status', 'progress'),
+'simkl_db': ('simkl_data', 'watched_status', 'progress'),
 'maincache_db': ('maincache',),
 'metacache_db': ('metadata', 'season_metadata', 'function_cache'),
 'lists_db': ('lists',),
@@ -60,6 +62,14 @@ last_played text, resume_id integer, title text, unique (db_type, media_id, seas
 'CREATE TABLE IF NOT EXISTS settings (setting_id text not null unique, setting_type text, setting_default text, setting_value text)',),
 'trakt_db': (
 'CREATE TABLE IF NOT EXISTS trakt_data (id text unique, data text)',
+'CREATE TABLE IF NOT EXISTS watched \
+(db_type text not null, media_id text not null, season integer, episode integer, last_played text, title text, unique (db_type, media_id, season, episode))',
+'CREATE TABLE IF NOT EXISTS progress \
+(db_type text not null, media_id text not null, season integer, episode integer, resume_point text, curr_time text, \
+last_played text, resume_id integer, title text, unique (db_type, media_id, season, episode))',
+'CREATE TABLE IF NOT EXISTS watched_status (db_type text not null, media_id text not null, status text, unique (db_type, media_id))'),
+'simkl_db': (
+'CREATE TABLE IF NOT EXISTS simkl_data (id text unique, data text)',
 'CREATE TABLE IF NOT EXISTS watched \
 (db_type text not null, media_id text not null, season integer, episode integer, last_played text, title text, unique (db_type, media_id, season, episode))',
 'CREATE TABLE IF NOT EXISTS progress \
@@ -187,6 +197,9 @@ def clear_cache(cache_type, silent=False):
 	elif cache_type == 'trakt':
 		from caches.trakt_cache import clear_all_trakt_cache_data
 		success = clear_all_trakt_cache_data(silent=silent)
+	elif cache_type == 'simkl':
+		from caches.simkl_cache import clear_all_simkl_cache_data
+		success = clear_all_simkl_cache_data(silent=silent)
 	elif cache_type == 'imdb':
 		if not _confirm(): return
 		from apis.imdb_api import clear_imdb_cache

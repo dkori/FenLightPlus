@@ -2,6 +2,7 @@
 import json
 import time
 import requests
+from threading import Lock
 from urllib.parse import unquote
 from caches import trakt_cache
 from caches.settings_cache import get_setting, set_setting
@@ -15,6 +16,7 @@ sleep, with_media_removals, get_property = kodi_utils.sleep, kodi_utils.with_med
 logger, notification, xbmc_player, confirm_dialog = kodi_utils.logger, kodi_utils.notification, kodi_utils.xbmc_player, kodi_utils.confirm_dialog
 kodi_dialog, addon_installed, addon_enabled, addon = kodi_utils.kodi_dialog, kodi_utils.addon_installed, kodi_utils.addon_enabled, kodi_utils.addon
 path_check, get_icon, clear_property, remove_keys = kodi_utils.path_check, kodi_utils.get_icon, kodi_utils.clear_property, kodi_utils.remove_keys
+ok_dialog, set_property = kodi_utils.ok_dialog, kodi_utils.set_property
 execute_builtin, select_dialog, kodi_refresh = kodi_utils.execute_builtin, kodi_utils.select_dialog, kodi_utils.kodi_refresh
 progress_dialog, external, trakt_user_active, show_unaired_watchlist = kodi_utils.progress_dialog, kodi_utils.external, settings.trakt_user_active, settings.show_unaired_watchlist
 lists_sort_order, trakt_client, trakt_secret, tmdb_api_key = settings.lists_sort_order, settings.trakt_client, settings.trakt_secret, settings.tmdb_api_key
@@ -30,6 +32,14 @@ res_format = '%Y-%m-%dT%H:%M:%S.%fZ'
 API_ENDPOINT = 'https://api.trakt.tv/%s'
 timeout = 60
 EXPIRY_1_DAY, EXPIRY_1_WEEK = 24, 168
+# Only used when Trakt omits expires_in from a token response.
+TOKEN_EXPIRY_FALLBACK = 86400
+# Refresh this many seconds before the access token actually expires.
+TOKEN_REFRESH_MARGIN = 300
+# After a failed refresh or re-auth prompt, wait this long before trying/asking again.
+REFRESH_RETRY_BACKOFF = 900
+AUTH_PROMPT_COOLDOWN = 300
+refresh_lock, auth_prompt_lock = Lock(), Lock()
 
 def no_client_key():
 	notification('Please set a valid Trakt Client ID Key')
@@ -39,15 +49,16 @@ def no_secret_key():
 	notification('Please set a valid Trakt Client Secret Key')
 	return None
 
-def call_trakt(path, params={}, data=None, is_delete=False, with_auth=True, method=None, pagination=False, page_no=1):
+def call_trakt(path, params={}, data=None, is_delete=False, with_auth=True, method=None, pagination=False, page_no=1, error_info=None):
+	def set_error(reason, status_code=None):
+		# Optional out-param so callers such as trakt_authenticate can report why a call failed.
+		if error_info is None: return
+		error_info['reason'] = reason
+		if status_code is not None: error_info['status_code'] = status_code
 	def send_query():
 		resp = None
 		if with_auth:
-			try:
-				try: expires_at = float(get_setting('fenlight.trakt.expires'))
-				except: expires_at = 0.0
-				if time.time() > expires_at: trakt_refresh_token()
-			except: pass
+			refresh_token_if_needed()
 			token = get_setting('fenlight.trakt.token')
 			if token: headers['Authorization'] = 'Bearer ' + token
 		try:
@@ -63,43 +74,65 @@ def call_trakt(path, params={}, data=None, is_delete=False, with_auth=True, meth
 				resp = requests.post(API_ENDPOINT % path, json=data, headers=headers, timeout=timeout)
 			elif is_delete: resp = requests.delete(API_ENDPOINT % path, headers=headers, timeout=timeout)
 			else: resp = requests.get(API_ENDPOINT % path, params=params, headers=headers, timeout=timeout)
-			resp.raise_for_status()
-		except Exception as e: return logger('Trakt Error', str(e))
+		except requests.exceptions.SSLError as e:
+			set_error('ssl')
+			logger('Trakt Error', "SSL failure for %s (%s). Check this device's date, time and time zone." % (path, e))
+			return None
+		except Exception as e:
+			set_error('connection')
+			logger('Trakt Error', '%s for %s' % (e, path))
+			return None
+		if resp.status_code >= 400:
+			set_error('http', resp.status_code)
+			logger('Trakt Error', 'HTTP %s for %s :: %s' % (resp.status_code, path, resp.text[:500]))
 		return resp
 	CLIENT_ID = trakt_client()
-	if CLIENT_ID in empty_setting_check: return no_client_key()
+	if CLIENT_ID in empty_setting_check:
+		set_error('no_client_key')
+		return no_client_key()
 	headers = {'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID}
 	if pagination: params['page'] = page_no
 	response = send_query()
-	try: status_code = response.status_code
-	except: return None
-	if status_code == 401:
-		if xbmc_player().isPlaying() == False:
-			if with_auth and confirm_dialog(heading='Authorize Trakt', text='You must authenticate with Trakt. Do you want to authenticate now?') and trakt_authenticate():
-				response = send_query()
-			else: pass
-		else: return
-	elif status_code == 429:
-		headers = response.headers
-		if 'Retry-After' in headers:
-			try: sleep(1000 * int(headers['Retry-After']))
+	if response is None: return None
+	if response.status_code == 401:
+		if xbmc_player().isPlaying(): return None
+		if not with_auth or not prompt_reauthenticate(): return None
+		response = send_query()
+		if response is None: return None
+	elif response.status_code == 429:
+		retry_after = response.headers.get('Retry-After')
+		if retry_after:
+			try: sleep(1000 * int(retry_after))
 			except ValueError: sleep(3000)
 			response = send_query()
+			if response is None: return None
+	if response.status_code >= 400: return None
 	response.encoding = 'utf-8'
 	try: result = response.json()
 	except: return None
-	headers = response.headers
-	if method == 'sort_by_headers' and 'X-Sort-By' in headers and 'X-Sort-How' in headers:
-		try: result = sort_list(headers['X-Sort-By'], headers['X-Sort-How'], result)
+	resp_headers = response.headers
+	if method == 'sort_by_headers' and 'X-Sort-By' in resp_headers and 'X-Sort-How' in resp_headers:
+		try: result = sort_list(resp_headers['X-Sort-By'], resp_headers['X-Sort-How'], result)
 		except: pass
-	if pagination: return (result, headers.get('X-Pagination-Page-Count'), headers.get('X-Sort-By'), headers.get('X-Sort-How'))
+	if pagination: return (result, resp_headers.get('X-Pagination-Page-Count'), resp_headers.get('X-Sort-By'), resp_headers.get('X-Sort-How'))
 	else: return result
 
-def trakt_get_device_code():
+def prompt_reauthenticate():
+	with auth_prompt_lock:
+		try: last_prompt = float(get_property('fenlight.trakt.auth_prompt'))
+		except: last_prompt = 0.0
+		if time.time() - last_prompt < AUTH_PROMPT_COOLDOWN: return False
+		set_property('fenlight.trakt.auth_prompt', str(time.time()))
+	if not confirm_dialog(heading='Authorize Trakt', text='You must authenticate with Trakt. Do you want to authenticate now?'): return False
+	return trakt_authenticate()
+
+def trakt_get_device_code(error_info=None):
 	CLIENT_ID = trakt_client()
-	if CLIENT_ID in empty_setting_check: return no_client_key()
+	if CLIENT_ID in empty_setting_check:
+		if error_info is not None: error_info['reason'] = 'no_client_key'
+		return no_client_key()
 	data = {'client_id': CLIENT_ID}
-	return call_trakt('oauth/device/code', data=data, with_auth=False)
+	return call_trakt('oauth/device/code', data=data, with_auth=False, error_info=error_info)
 
 def trakt_get_device_token(device_codes):
 	CLIENT_ID = trakt_client()
@@ -121,8 +154,7 @@ def trakt_get_device_token(device_codes):
 		t_o = 5
 		content = '[CR]Scan the QR Code or navigate to: [B]%s[/B][CR]Enter the following code: [B]%s[/B]' % (str(device_codes['verification_url']), user_code)
 		direct_url = f"{verification_url}/{user_code}"
-		tiny_url = requests.get('http://tinyurl.com/api-create.php', params={'url': direct_url}, timeout=t_o).text
-		qr_icon = 'https://qrcode.tec-it.com/API/QRCode?data=%s&backcolor=%%23ffffff&size=small&quietzone=1&errorcorrection=H' % tiny_url
+		tiny_url, qr_icon = kodi_utils.make_qr(direct_url)
 		progressDialog = progress_dialog('Trakt Authorize', qr_icon)
 		progressDialog.update(content, 0)
 		try:
@@ -148,28 +180,76 @@ def trakt_get_device_token(device_codes):
 			kodi_utils.logger('TRAKT ERROR 4', e)
 	return result
 
+def store_trakt_token(response):
+	try: expires_in = int(response.get('expires_in') or TOKEN_EXPIRY_FALLBACK)
+	except: expires_in = TOKEN_EXPIRY_FALLBACK
+	set_setting('trakt.token', response['access_token'])
+	set_setting('trakt.refresh', response['refresh_token'])
+	set_setting('trakt.expires', str(time.time() + expires_in))
+	clear_property('fenlight.trakt.refresh_backoff')
+
+def refresh_token_if_needed():
+	try:
+		try: expires_at = float(get_setting('fenlight.trakt.expires'))
+		except: expires_at = 0.0
+		if time.time() < (expires_at - TOKEN_REFRESH_MARGIN): return
+		try: backoff_until = float(get_property('fenlight.trakt.refresh_backoff'))
+		except: backoff_until = 0.0
+		if time.time() < backoff_until: return
+		trakt_refresh_token()
+	except: pass
+
 def trakt_refresh_token():
 	CLIENT_ID = trakt_client()
 	if CLIENT_ID in empty_setting_check: return no_client_key()
 	CLIENT_SECRET = trakt_secret()
 	if CLIENT_SECRET in empty_setting_check: return no_secret_key()
-	data = {        
-		'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET, 'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
-		'grant_type': 'refresh_token', 'refresh_token': get_setting('fenlight.trakt.refresh')}
-	response = call_trakt("oauth/token", data=data, with_auth=False)
-	if response:
-		set_setting('trakt.token', response["access_token"])
-		set_setting('trakt.refresh', response["refresh_token"])
-		set_setting('trakt.expires', str(time.time() + 86400))
+	with refresh_lock:
+		try: expires_at = float(get_setting('fenlight.trakt.expires'))
+		except: expires_at = 0.0
+		if time.time() < (expires_at - TOKEN_REFRESH_MARGIN): return
+		refresh_token = get_setting('fenlight.trakt.refresh')
+		if refresh_token in empty_setting_check or refresh_token == '0':
+			set_property('fenlight.trakt.refresh_backoff', str(time.time() + REFRESH_RETRY_BACKOFF))
+			return
+		data = {
+			'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET, 'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
+			'grant_type': 'refresh_token', 'refresh_token': refresh_token}
+		error_info = {}
+		response = call_trakt('oauth/token', data=data, with_auth=False, error_info=error_info)
+		if response and 'access_token' in response: store_trakt_token(response)
+		else:
+			set_property('fenlight.trakt.refresh_backoff', str(time.time() + REFRESH_RETRY_BACKOFF))
+			logger('Trakt Error', 'Token refresh failed (%s) - re-authorization may be required'
+					% (error_info.get('status_code') or error_info.get('reason') or 'no response'))
+
+def report_device_code_failure(error_info):
+	reason = error_info.get('reason')
+	if reason in ('no_client_key', 'no_secret_key'): return
+	if reason == 'ssl':
+		ok_dialog(heading='Trakt Error', text="Could not establish a secure connection to Trakt.[CR]Check this device's date, time and time zone, then try again.")
+	elif reason == 'http':
+		status_code = error_info.get('status_code')
+		if status_code in (401, 403):
+			ok_dialog(heading='Trakt Error', text='Trakt rejected the Client ID and Secret Key (HTTP %s).[CR]Check them in Settings, or restore the defaults.' % status_code)
+		else:
+			ok_dialog(heading='Trakt Error', text='Trakt returned an error (HTTP %s).[CR]Please try again shortly.' % status_code)
+	else:
+		ok_dialog(heading='Trakt Error', text="Could not reach Trakt.[CR]Check this device's network connection, date and time.")
 
 def trakt_authenticate(dummy=''):
-	code = trakt_get_device_code()
+	error_info = {}
+	code = trakt_get_device_code(error_info)
+	if not code:
+		report_device_code_failure(error_info)
+		return False
 	token = trakt_get_device_token(code)
 	if token:
-		set_setting('trakt.token', token["access_token"])
-		set_setting('trakt.refresh', token["refresh_token"])
-		set_setting('trakt.expires', str(time.time() + 86400))
-		set_setting('watched_indicators', '1')
+		store_trakt_token(token)
+		clear_property('fenlight.trakt.auth_prompt')
+		if settings.tracking_provider() != 'simkl' or confirm_dialog(heading='Active Tracker',
+				text='Make Trakt your active tracker now?[CR]Choose No to keep using Simkl for tracking.'):
+			set_setting('watched_indicators', '1')
 		sleep(1000)
 		try:
 			user = call_trakt('/users/me')
@@ -186,7 +266,14 @@ def trakt_revoke_authentication(dummy=''):
 	set_setting('trakt.expires', '')
 	set_setting('trakt.token', '')
 	set_setting('trakt.refresh', '')
-	set_setting('watched_indicators', '0')
+	clear_property('fenlight.trakt.refresh_backoff')
+	clear_property('fenlight.trakt.auth_prompt')
+	# Only touch the active-tracker setting if Trakt was actually the active tracker.
+	if settings.tracking_provider() == 'trakt':
+		if settings.simkl_user_active() and confirm_dialog(heading='Active Tracker',
+				text='Switch tracking to Simkl?[CR]Choose No to use built-in tracking.'):
+			set_setting('watched_indicators', '2')
+		else: set_setting('watched_indicators', '0')
 	clear_all_trakt_cache_data(silent=True, refresh=False)
 	notification('Trakt Account Authorization Reset', 3000)
 	CLIENT_ID = trakt_client()

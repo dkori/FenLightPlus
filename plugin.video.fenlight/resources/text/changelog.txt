@@ -1,3 +1,7 @@
+[COLOR dodgerblue][B]Version 2.5.0[/B][/COLOR]
+- Added Magneto scraper compatibility
+- Added Simkl as a tracker option
+
 [COLOR dodgerblue][B]Version 2.4.0[/B][/COLOR]
 - Fixed Trakt API
 - Updated Torbox login process

@@ -193,6 +193,10 @@ class FenLightPlayer(xbmc_player):
 	def run_media_progress(self, function, params):
 		try: function(params)
 		except: pass
+		try:
+			from modules import tracking
+			if tracking.is_external(): tracking.sync_activities()
+		except: pass
 
 	def run_next_ep(self):
 		from modules.episode_tools import EpisodeTools

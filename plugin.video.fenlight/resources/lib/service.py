@@ -66,25 +66,43 @@ class CustomFonts:
 
 class TraktMonitor:
 	def run(self):
-		logger('Fen Light', 'TraktMonitor Service Starting')
-		from apis.trakt_api import trakt_sync_activities
-		from caches.settings_cache import get_setting
+		logger('Fen Light', 'TrackingMonitor Service Starting')
+		from modules import tracking
 		from modules.kodi_utils import run_plugin
-		from modules.settings import trakt_sync_interval
+		from modules.settings import tracking_sync_interval, tracking_refresh_widgets
 		monitor, player, window = xbmc.Monitor(), xbmc.Player(), xbmcgui.Window(10000)
 		wait_for_abort, is_playing = monitor.waitForAbort, player.isPlayingVideo
+		simkl_startup_synced = False
 		while not monitor.abortRequested():
 			while is_playing() or window.getProperty(pause_services_prop) == 'true': wait_for_abort(10)
 			wait_time = 1800
+			# Re-read the provider every pass — it can change at runtime
+			try: provider = tracking.provider()
+			except: provider = 'builtin'
+			if provider == 'simkl':
+				if not simkl_startup_synced:
+					simkl_startup_synced = True
+					try:
+						status = tracking.sync_activities()
+						logger('Fen Light', 'TrackingMonitor Startup Sync (Simkl) - %s' % status)
+						if status == 'success' and tracking_refresh_widgets(): run_plugin({'mode': 'kodi_refresh'})
+					except Exception as e: logger('Fen Light', 'TrackingMonitor Startup Sync (Simkl) Failed - %s' % str(e))
+				wait_for_abort(600)  # idle: local settings read only, no network
+				continue
+			# Re-arm the startup sync so switching back to Simkl later syncs once again.
+			simkl_startup_synced = False
+			if provider != 'trakt':
+				wait_for_abort(600)
+				continue
 			try:
-				sync_interval, wait_time = trakt_sync_interval()
+				sync_interval, wait_time = tracking_sync_interval()
 				next_update_string = update_string % sync_interval
-				status = trakt_sync_activities()
-				if status == 'failed': logger('Fen Light', trakt_service_string % ('Failed. Error from Trakt', next_update_string))
+				status = tracking.sync_activities()
+				if status == 'failed': logger('Fen Light', trakt_service_string % ('Failed. Error from Tracker', next_update_string))
 				else:
 					if status in ('success', 'no account'): logger('Fen Light', trakt_service_string % ('Success. %s' % trakt_success_line_dict[status], next_update_string))
 					else: logger('Fen Light', trakt_service_string % ('Success. No Changes Needed', next_update_string))# 'not needed'
-					if status == 'success' and get_setting('fenlight.trakt.refresh_widgets', 'false') == 'true': run_plugin({'mode': 'kodi_refresh'})
+					if status == 'success' and tracking_refresh_widgets(): run_plugin({'mode': 'kodi_refresh'})
 			except Exception as e: logger('Fen Light', trakt_service_string % ('Failed', 'The following Error Occured: %s' % str(e)))
 			wait_for_abort(wait_time)
 		try: del monitor

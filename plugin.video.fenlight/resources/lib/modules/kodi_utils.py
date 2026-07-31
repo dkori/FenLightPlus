@@ -14,13 +14,19 @@ progressDialogBG = xbmcgui.DialogProgressBG
 endOfDirectory, addSortMethod, listdir, mkdir, mkdirs = xbmcplugin.endOfDirectory, xbmcplugin.addSortMethod, xbmcvfs.listdir, xbmcvfs.mkdir, xbmcvfs.mkdirs
 addDirectoryItem, addDirectoryItems, setContent, setCategory = xbmcplugin.addDirectoryItem, xbmcplugin.addDirectoryItems, xbmcplugin.setContent, xbmcplugin.setPluginCategory
 path_join = osPath.join
-img_url = 'https://external-content.duckduckgo.com/iu/?u=https://i.imgur.com/%s.png'
+img_url = 'https://raw.githubusercontent.com/thejason40/FenLightPlus/main/icons/%s.png'
 invoker_switch_dict = {'true': 'false', 'false': 'true'}
 empty_poster, nextpage = img_url % icons.box_office, img_url % icons.nextpage
 nextpage_landscape = img_url % icons.nextpage_landscape
-tmdb_default_api = '7e4d48e68abb9a4f2c86a1cc143cd8b5'
-trakt_default_id = '17d84db50cb16624adc67401637f0995949fb8dce2110100d0cb6c0750d273b3'
-trakt_default_secret = 'a69c7bb0bad9774f6a216a306410bd303d7e92ad92c67c057b0389ad99b8491a'
+QR_CENTER_ICON = img_url % 'fenlight_plus_icon'
+try:
+	from fenlight_keys import tmdb_default_api, tmdb_default_read_token, trakt_default_id, trakt_default_secret, simkl_default_client
+except ImportError:
+	tmdb_default_api = ''
+	tmdb_default_read_token = ''
+	trakt_default_id = ''
+	trakt_default_secret = ''
+	simkl_default_client = ''
 myvideos_db_paths = {19: '119', 20: '121', 21: '124'}
 sort_method_dict = {'episodes': 24, 'files': 5, 'label': 2, 'none': 0}
 playlist_type_dict = {'music': 0, 'video': 1}
@@ -71,7 +77,7 @@ def addon_fanart():
 	return get_property('fenlight.addon_fanart') or addon_info('fanart')
 
 def get_icon(image_name):
-	return img_url % getattr(icons, image_name, 'I1JJhji')
+	return img_url % getattr(icons, image_name, 'folder')
 
 def get_addon_fanart():
 	return get_property('fenlight.default_addon_fanart') or addon_fanart()
@@ -135,6 +141,28 @@ def append_path(_path):
 def logger(heading, function):
 	log('###%s###: %s' % (heading, function), 1)
 
+def short_url(url):
+	from urllib.request import Request, urlopen
+	import json
+	headers = {'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+	providers = (('https://spoo.me/api/v1/shorten', 'long_url'), ('https://shrtr.top/api/v1/shorten', 'url'))
+	for api_url, url_field in providers:
+		try:
+			req = Request(api_url, data=json.dumps({url_field: url}).encode('utf-8'), headers=headers)
+			result = urlopen(req, timeout=5)
+			if result.getcode() == 201:
+				return json.loads(result.read().decode('utf-8'))['short_url']
+		except Exception as e:
+			logger('SHORT URL ERROR (%s)' % api_url, e)
+	return url
+
+def make_qr(url):
+	from urllib.parse import quote
+	tiny_url = short_url(url)
+	qr_icon = ('https://quickchart.io/qr?text=%s&centerImageUrl=%s&ecLevel=H&size=300&margin=4&centerImageSizeRatio=0.3&dark=3c4a5d'
+				% (quote(tiny_url, safe=''), quote(QR_CENTER_ICON, safe='')))
+	return tiny_url, qr_icon
+
 def kodi_window():
 	return Window(10000)
 
@@ -146,6 +174,12 @@ def set_property(prop, value):
 
 def clear_property(prop):
 	return kodi_window().clearProperty(prop)
+
+def mask_key(value, visible=6, max_stars=12):
+	if not value or value in ('empty_setting', 'None'): return value
+	value = str(value)
+	if len(value) <= visible: return value
+	return value[:visible] + ('*' * min(len(value) - visible, max_stars))
 
 def clear_all_properties():
 	return kodi_window().clearProperties()

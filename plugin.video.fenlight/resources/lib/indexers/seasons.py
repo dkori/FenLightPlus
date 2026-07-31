@@ -85,7 +85,7 @@ def build_season_list(params):
 		handle, is_external, is_home, category_name = int(sys.argv[1]), external(), home(), 'Season'
 		watched_indicators, adjust_hours, hide_watched = watched_indicators_info(), date_offset_info(), is_home and widget_hide_watched()
 		current_date = get_datetime()
-		watched_title = 'Trakt' if watched_indicators == 1 else 'Fen Light'
+		watched_title = 'Trakt' if watched_indicators == 1 else 'Simkl' if watched_indicators == 2 else 'Fen Light'
 		meta = tvshow_meta('tmdb_id', params['tmdb_id'], tmdb_api_key(), mpaa_region(), current_date)
 		meta_get = meta.get
 		tmdb_id, tvdb_id, imdb_id, show_title, show_year = meta_get('tmdb_id'), meta_get('tvdb_id'), meta_get('imdb_id'), meta_get('title'), meta_get('year') or '2050'

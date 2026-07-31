@@ -25,6 +25,7 @@ personal = {'favorites_movies': ('modules.favorites', 'get_favorites'), 'in_prog
 'watched_movies': ('modules.watched_status', 'get_watched_items'), 'recent_watched_movies': ('modules.watched_status', 'get_recently_watched')}
 trakt_main = ('trakt_movies_trending', 'trakt_movies_trending_recent', 'trakt_movies_trending_uk', 'trakt_movies_trending_recent_uk','trakt_movies_most_watched', 'trakt_movies_most_favorited', 'trakt_movies_top10_boxoffice')
 trakt_personal = ('trakt_collection', 'trakt_watchlist', 'trakt_collection_lists', 'trakt_watchlist_lists', 'trakt_favorites')
+simkl_personal = ('simkl_watching', 'simkl_plantowatch', 'simkl_completed', 'simkl_hold', 'simkl_dropped')
 meta_list_dict = {'tmdb_movies_languages': meta_lists.languages, 'tmdb_movies_providers': meta_lists.watch_providers_movies, 'tmdb_movies_providers_uk': meta_lists.watch_providers_movies_uk, 'tmdb_movies_year': meta_lists.years_movies,
 			'tmdb_movies_decade': meta_lists.decades_movies, 'tmdb_movies_certifications': meta_lists.movie_certifications, 'tmdb_movies_genres': meta_lists.movie_genres}
 view_mode, content_type = 'view.movies', 'movies'
@@ -76,7 +77,7 @@ class Movies:
 				try: self.list = [i['movie']['ids'] for i in data]
 				except: self.list = [i['ids'] for i in data]
 				if self.action not in ('trakt_movies_top10_boxoffice', 'trakt_recommendations'): self.new_page = {'new_page': string(page_no + 1)}
-			elif self.action in trakt_personal:
+			elif self.action in trakt_personal or self.action in simkl_personal:
 				self.id_type = 'trakt_dict'
 				data = function('movies', page_no)
 				if self.action in ('trakt_collection_lists', 'trakt_watchlist_lists', 'trakt_favorites'): total_pages = 1
@@ -213,7 +214,7 @@ class Movies:
 	def worker(self):
 		self.current_date, self.current_time, self.watched_indicators = get_datetime(), get_current_timestamp(), watched_indicators()
 		self.tmdb_api_key, self.mpaa_region = tmdb_api_key(), mpaa_region()
-		self.watched_title = 'Trakt' if self.watched_indicators == 1 else 'Fen Light'
+		self.watched_title = 'Trakt' if self.watched_indicators == 1 else 'Simkl' if self.watched_indicators == 2 else 'Fen Light'
 		watched_db = get_database(self.watched_indicators)
 		self.watched_info, self.bookmarks = watched_info_movie(watched_db), get_bookmarks_movie(watched_db)
 		self.window_command = 'ActivateWindow(Videos,%s,return)' if self.is_external else 'Container.Update(%s)'

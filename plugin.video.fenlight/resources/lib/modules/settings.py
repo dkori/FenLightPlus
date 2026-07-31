@@ -31,6 +31,15 @@ def trakt_secret():
 def trakt_user_active():
 	return get_setting('fenlight.trakt.user', 'empty_setting') not in ('empty_setting', '')
 
+def simkl_client():
+	return get_setting('fenlight.simkl.client', '')
+
+def simkl_user_active():
+	return get_setting('fenlight.simkl.user', 'empty_setting') not in ('empty_setting', '')
+
+def tracking_provider():
+	return {'0': 'builtin', '1': 'trakt', '2': 'simkl'}.get(str(get_setting('fenlight.watched_indicators', '0')), 'builtin')
+
 def results_format():
 	window_format = str(get_setting('fenlight.results.list_format', 'List'))
 	if not window_format in results_window_numbers_dict:
@@ -139,6 +148,14 @@ def trakt_sync_interval():
 	setting = get_setting('fenlight.trakt.sync_interval', '25')
 	interval = int(setting) * 60
 	return setting, interval
+
+def tracking_sync_interval():
+	setting = get_setting('fenlight.trakt.sync_interval', '30')
+	return setting, int(setting) * 60
+
+def tracking_refresh_widgets():
+	key = 'fenlight.simkl.refresh_widgets' if tracking_provider() == 'simkl' else 'fenlight.trakt.refresh_widgets'
+	return get_setting(key, 'true') == 'true'
 
 def lists_sort_order(setting):
 	return int(get_setting('fenlight.sort.%s' % setting, '0'))
@@ -296,7 +313,8 @@ def widget_hide_watched():
 	return get_setting('fenlight.widget_hide_watched', 'false') == 'true'
 
 def calendar_sort_order():
-	return int(get_setting('fenlight.trakt.calendar_sort_order', '0'))
+	key = 'fenlight.simkl.calendar_sort_order' if tracking_provider() == 'simkl' else 'fenlight.trakt.calendar_sort_order'
+	return int(get_setting(key, '0'))
 
 def date_offset():
 	return int(get_setting('fenlight.datetime.offset', '0')) + 5
@@ -305,11 +323,14 @@ def media_open_action(media_type):
 	return int(get_setting('fenlight.media_open_action_%s' % media_type, '0'))
 
 def watched_indicators():
-	if not trakt_user_active(): return 0
-	return int(get_setting('fenlight.watched_indicators', '0'))
+	provider = tracking_provider()
+	if provider == 'trakt': return 1 if trakt_user_active() else 0
+	if provider == 'simkl': return 2 if simkl_user_active() else 0
+	return 0
 
 def flatten_episodes():
-	return get_setting('fenlight.trakt.flatten_episodes', 'false') == 'true'
+	key = 'fenlight.simkl.flatten_episodes' if tracking_provider() == 'simkl' else 'fenlight.trakt.flatten_episodes'
+	return get_setting(key, 'false') == 'true'
 
 def nextep_method():
 	return int(get_setting('fenlight.nextep.method', '0'))

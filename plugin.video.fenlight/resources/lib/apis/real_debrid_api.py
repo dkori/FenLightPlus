@@ -49,8 +49,7 @@ class RealDebridAPI:
 		except: pass
 		t_o = 5
 		content = 'Scan the QR Code or navigate to: [B]https://real-debrid.com/device[/B][CR]Enter the following code: [B]%s[/B]' % user_code
-		tiny_url = requests.get('http://tinyurl.com/api-create.php', params={'url': direct_url}, timeout=t_o).text
-		qr_icon = 'https://qrcode.tec-it.com/API/QRCode?data=%s&backcolor=%%23ffffff&size=small&quietzone=1&errorcorrection=H' % tiny_url
+		tiny_url, qr_icon = kodi_utils.make_qr(direct_url)
 		progressDialog = progress_dialog('Real Debrid Authorize', qr_icon)
 		progressDialog.update(content, 0)
 		expires_in = int(response['expires_in'])

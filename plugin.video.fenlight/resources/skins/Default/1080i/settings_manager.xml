@@ -513,11 +513,11 @@
                       </item>
                       <item>
                           <visible>Container(2000).HasFocus(10)</visible>
-                          <visible>!String.IsEqual(Window(10000).Property(fenlight.trakt.user),empty_setting)</visible>
-                          <property name="setting_label">Watched Status Provider</property>
+                          <visible>[!String.IsEqual(Window(10000).Property(fenlight.trakt.user),empty_setting) | !String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)]</visible>
+                          <property name="setting_label">Tracking Provider</property>
                           <property name="setting_type">action</property>
                           <property name="setting_value">$INFO[Window(10000).Property(fenlight.watched_indicators_name)]</property>
-                          <property name="setting_description">Choose the provider that keeps track of the Movies and Episodes you have watched within Fen Light+. Options are the built in method of Fen Light+ or your Trakt account</property>
+                          <property name="setting_description">Choose the active tracker that handles your watched status, Continue Watching, scrobbling, watchlist and calendar within Fen Light+. Options are the built in method of Fen Light+, your Trakt account, or your Simkl account</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_from_list&amp;setting_id=watched_indicators)</onclick>
                       </item>
         <!-- Trakt Cache -->
@@ -544,6 +544,23 @@
                           <property name="setting_value">$INFO[Window(10000).Property(fenlight.trakt.refresh_widgets)]</property>
                           <property name="setting_description">Enable this and Fen Light+ will refresh widgets after performing a Trakt Sync if there were any changes</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_boolean&amp;setting_id=trakt.refresh_widgets)</onclick>
+                      </item>
+        <!-- Simkl Cache -->
+                      <item>
+                          <visible>Container(2000).HasFocus(10)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Simkl Cache</property>
+                          <property name="setting_type">separator</property>
+                          <onclick>noop</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(10)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Refresh Widgets After Simkl Sync</property>
+                          <property name="setting_type">boolean</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.simkl.refresh_widgets)]</property>
+                          <property name="setting_description">Enable this and Fen Light+ will refresh widgets after performing a Simkl Sync if there were any changes</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_boolean&amp;setting_id=simkl.refresh_widgets)</onclick>
                       </item>
         <!-- UTC Time Offset -->
                       <item>
@@ -828,10 +845,10 @@
                       </item>
                       <item>
                           <visible>Container(2000).HasFocus(30)</visible>
-                          <property name="setting_label">Include Unaired Media in Trakt Watchlists</property>
+                          <property name="setting_label">Include Unaired Media in Watchlists</property>
                           <property name="setting_type">boolean</property>
                           <property name="setting_value">$INFO[Window(10000).Property(fenlight.show_unaired_watchlist)]</property>
-                          <property name="setting_description">Enable this and Fen Light+ will display any unaired media in your Trakt Movie/TV Show Watchlists. Disable this and any unaired Media will be hidden</property>
+                          <property name="setting_description">Enable this and Fen Light+ will display any unaired media in your Movie/TV Show Watchlists. Disable this and any unaired Media will be hidden</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_boolean&amp;setting_id=show_unaired_watchlist)</onclick>
                       </item>
                       <item>
@@ -1004,10 +1021,10 @@
                       </item>
                       <item>
                           <visible>Container(2000).HasFocus(40)</visible>
-                          <property name="setting_label">Include Trakt Watchlist/Fen Light+ Favorites</property>
+                          <property name="setting_label">Include Watchlist/Fen Light+ Favorites</property>
                           <property name="setting_type">action</property>
                           <property name="setting_value">$INFO[Window(10000).Property(fenlight.nextep.include_unwatched_name)]</property>
-                          <property name="setting_description">Choose which lists are included within Next Episodes. You can include your Trakt Watchlist, your Fen Light+ Favorites, or both. They will show with a DARKGOLDENROD highlight</property>
+                          <property name="setting_description">Choose which lists are included within Next Episodes. You can include your tracker's Watchlist (Trakt) or Plan to Watch (Simkl), your Fen Light+ Favorites, or both. They will show with a DARKGOLDENROD highlight</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_from_list&amp;setting_id=nextep.include_unwatched)</onclick>
                       </item>
                       <item>
@@ -1073,6 +1090,50 @@
                           <property name="setting_description">Choose how many future days will be shown within the Trakt Calendar</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_numeric&amp;setting_id=trakt.calendar_future_days)</onclick>
                       </item>
+        <!-- Simkl Calendar -->
+                      <item>
+                          <visible>Container(2000).HasFocus(40)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Simkl Calendar</property>
+                          <property name="setting_type">separator</property>
+                          <onclick>noop</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(40)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Flatten TV Shows Airing on Same Day</property>
+                          <property name="setting_type">boolean</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.simkl.flatten_episodes)]</property>
+                          <property name="setting_description">Enable this to limit to the first instance of a TV Show episode when that TV Show has multiple episodes airing on the same day</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_boolean&amp;setting_id=simkl.flatten_episodes)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(40)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Sort Order</property>
+                          <property name="setting_type">action</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.simkl.calendar_sort_order_name)]</property>
+                          <property name="setting_description">Choose the sort direction of the Simkl Calendar list. Ascending or Descending</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_from_list&amp;setting_id=simkl.calendar_sort_order)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(40)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Show Previous Days</property>
+                          <property name="setting_type">numeric</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.simkl.calendar_previous_days)]</property>
+                          <property name="setting_description">Choose how many previous days will be shown within the Simkl Calendar</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_numeric&amp;setting_id=simkl.calendar_previous_days)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(40)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Show Future Days</property>
+                          <property name="setting_type">numeric</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.simkl.calendar_future_days)]</property>
+                          <property name="setting_description">Choose how many future days will be shown within the Simkl Calendar</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_numeric&amp;setting_id=simkl.calendar_future_days)</onclick>
+                      </item>
 <!-- ACCOUNTS 50 -->
         <!-- Trakt -->
                       <item>
@@ -1092,9 +1153,9 @@
                       </item>
                       <item>
                           <visible>Container(2000).HasFocus(50)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.trakt.user),empty_setting)</visible>
                           <property name="setting_label">Revoke Authorization</property>
                           <property name="setting_type">action</property>
-                          <property name="setting_value">...</property>
                           <property name="setting_value">$INFO[Window(10000).Property(fenlight.trakt.user)]</property>
                           <property name="setting_description">Revoke authorization of your Trakt account</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=trakt.trakt_revoke_authentication)</onclick>
@@ -1103,13 +1164,13 @@
                           <visible>Container(2000).HasFocus(50)</visible>
                           <property name="setting_label">Client ID Key</property>
                           <property name="setting_type">numeric</property>
-                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.trakt.client)]</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.trakt.client.display)]</property>
                           <property name="setting_description">Enter here your Trakt Client ID key</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_string&amp;setting_id=trakt.client)</onclick>
                       </item>
                       <item>
                           <visible>Container(2000).HasFocus(50)</visible>
-                          <visible>!String.IsEqual(Window(10000).Property(fenlight.trakt.client),1038ef327e86e7f6d39d80d2eb5479bff66dd8394e813c5e0e387af0f84d89fb)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.trakt.client.is_default),true)</visible>
                           <property name="setting_label">    - Restore Default Client ID Key</property>
                           <property name="setting_type">action</property>
                           <property name="setting_value">...</property>
@@ -1120,18 +1181,60 @@
                           <visible>Container(2000).HasFocus(50)</visible>
                           <property name="setting_label">Client Secret Key</property>
                           <property name="setting_type">numeric</property>
-                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.trakt.secret)]</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.trakt.secret.display)]</property>
                           <property name="setting_description">Enter here your Trakt Client Secret key</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_string&amp;setting_id=trakt.secret)</onclick>
                       </item>
                       <item>
                           <visible>Container(2000).HasFocus(50)</visible>
-                          <visible>!String.IsEqual(Window(10000).Property(fenlight.trakt.secret),8d27a92e1d17334dae4a0590083a4f26401cb8f721f477a79fd3f218f8534fd1)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.trakt.secret.is_default),true)</visible>
                           <property name="setting_label">    - Restore Default Client Secret Key</property>
                           <property name="setting_type">action</property>
                           <property name="setting_value">...</property>
                           <property name="setting_description">Restore default Trakt Client Secret Key</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.restore_setting_default&amp;setting_id=trakt.secret)</onclick>
+                      </item>
+        <!-- Simkl -->
+                      <item>
+                          <visible>Container(2000).HasFocus(50)</visible>
+                          <property name="setting_label">Simkl</property>
+                          <property name="setting_type">separator</property>
+                          <onclick>noop</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(50)</visible>
+                          <visible>String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Authorize</property>
+                          <property name="setting_type">action</property>
+                          <property name="setting_value">...</property>
+                          <property name="setting_description">Authorize your Simkl account and use it within Fen Light+</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=simkl.simkl_authenticate)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(50)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.user),empty_setting)</visible>
+                          <property name="setting_label">Revoke Authorization</property>
+                          <property name="setting_type">action</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.simkl.user)]</property>
+                          <property name="setting_description">Revoke authorization of your Simkl account</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=simkl.simkl_revoke_authentication)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(50)</visible>
+                          <property name="setting_label">Client ID Key</property>
+                          <property name="setting_type">numeric</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.simkl.client.display)]</property>
+                          <property name="setting_description">Enter here your Simkl Client ID key (from simkl.com/settings/developer)</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_string&amp;setting_id=simkl.client)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(50)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.simkl.client.is_default),true)</visible>
+                          <property name="setting_label">    - Restore Default Client ID Key</property>
+                          <property name="setting_type">action</property>
+                          <property name="setting_value">...</property>
+                          <property name="setting_description">Restore default Simkl Client ID Key</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.restore_setting_default&amp;setting_id=simkl.client)</onclick>
                       </item>
         <!-- TMDb -->
                       <item>
@@ -1144,13 +1247,13 @@
                           <visible>Container(2000).HasFocus(50)</visible>
                           <property name="setting_label">API Key</property>
                           <property name="setting_type">numeric</property>
-                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.tmdb_api)]</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.tmdb_api.display)]</property>
                           <property name="setting_description">Enter here your TMDb API key</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_string&amp;setting_id=tmdb_api)</onclick>
                       </item>
                       <item>
                           <visible>Container(2000).HasFocus(50)</visible>
-                          <visible>!String.IsEqual(Window(10000).Property(fenlight.tmdb_api),b370b60447737762ca38457bd77579b3)</visible>
+                          <visible>!String.IsEqual(Window(10000).Property(fenlight.tmdb_api.is_default),true)</visible>
                           <property name="setting_label">    - Restore Default TMDb API Key</property>
                           <property name="setting_type">action</property>
                           <property name="setting_value">...</property>
@@ -1201,7 +1304,7 @@
                           <visible>Container(2000).HasFocus(50)</visible>
                           <property name="setting_label">API Key</property>
                           <property name="setting_type">numeric</property>
-                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.omdb_api)]</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.omdb_api.display)]</property>
                           <property name="setting_description">Enter here your OMDb API key. This will allow you to utilize extra ratings information in the Extras window</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_string&amp;setting_id=omdb_api)</onclick>
                       </item>
@@ -1573,7 +1676,7 @@
                           <visible>String.IsEqual(Window(10000).Property(fenlight.oc.enabled),true)</visible>
                           <property name="setting_label">Revoke Authorization</property>
                           <property name="setting_type">action</property>
-                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.oc.token)]</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.oc.token.display)]</property>
                           <property name="setting_description">Revoke authorization of your Off Cloud account</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=offcloud.revoke_authentication)</onclick>
                       </item>
@@ -1671,7 +1774,7 @@
                           <visible>String.IsEqual(Window(10000).Property(fenlight.ed.enabled),true)</visible>
                           <property name="setting_label">Revoke Authorization</property>
                           <property name="setting_type">action</property>
-                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.ed.token)]</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.ed.token.display)]</property>
                           <property name="setting_description">Revoke authorization of your Easy Debrid account</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=easydebrid.revoke_authentication)</onclick>
                       </item>
@@ -1716,7 +1819,7 @@
                           <visible>String.IsEqual(Window(10000).Property(fenlight.tb.enabled),true)</visible>
                           <property name="setting_label">Revoke Authorization</property>
                           <property name="setting_type">action</property>
-                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.tb.token)]</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.tb.token.display)]</property>
                           <property name="setting_description">Revoke authorization of your TorBox account</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=torbox.revoke_authentication)</onclick>
                       </item>
@@ -1812,7 +1915,7 @@
                           <visible>String.IsEqual(Window(10000).Property(fenlight.provider.easynews),true)</visible>
                           <property name="setting_label">Password</property>
                           <property name="setting_type">numeric</property>
-                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.easynews_password)]</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.easynews_password.display)]</property>
                           <property name="setting_description">Enter the Password of your Easynews account</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_string&amp;setting_id=easynews_password)</onclick>
                       </item>

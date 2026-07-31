@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
-from apis.trakt_api import trakt_watchlist, trakt_get_my_calendar
 from caches.favorites_cache import favorites_cache
-from modules import kodi_utils, settings, watched_status as ws
+from modules import kodi_utils, settings, watched_status as ws, tracking
 from modules.metadata import tvshow_meta, episodes_meta, all_episodes_meta
 from modules.utils import jsondate_to_datetime, adjust_premiered_date, make_day, get_datetime, title_key, date_difference, make_thread_list_enumerate
 # logger = kodi_utils.logger
@@ -102,7 +101,7 @@ def build_episode_list(params):
 	append = item_list.append
 	watched_indicators, adjust_hours = watched_indicators_info(), date_offset_info()
 	current_date, hide_watched = get_datetime(), is_home and widget_hide_watched()
-	watched_title = 'Trakt' if watched_indicators == 1 else 'Fen Light'
+	watched_title = 'Trakt' if watched_indicators == 1 else 'Simkl' if watched_indicators == 2 else 'Fen Light'
 	meta = tvshow_meta('tmdb_id', params.get('tmdb_id'), tmdb_api_key(), mpaa_region(), current_date)
 	meta_get = meta.get
 	tmdb_id, tvdb_id, imdb_id, tvshow_plot, orig_title = meta_get('tmdb_id'), meta_get('tvdb_id'), meta_get('imdb_id'), meta_get('plot'), meta_get('original_title')
@@ -286,7 +285,7 @@ def build_single_episode(list_type, params={}):
 	current_date, adjust_hours, unwatched_info, hide_watched = get_datetime(), date_offset_info(), single_ep_unwatched_episodes(), is_home and widget_hide_watched()
 	api_key, mpaa_region_value = tmdb_api_key(), mpaa_region()
 	watched_db = get_database(watched_indicators)
-	watched_title = 'Trakt' if watched_indicators == 1 else 'Fen Light'
+	watched_title = 'Trakt' if watched_indicators == 1 else 'Simkl' if watched_indicators == 2 else 'Fen Light'
 	category_name = _get_category_name()
 	if list_type == 'episode.next':
 		include_unwatched, include_unaired, nextep_content = nextep_include_unwatched(), nextep_include_unaired(), nextep_method()
@@ -296,12 +295,12 @@ def build_single_episode(list_type, params={}):
 		if nextep_limit_history(): data = data[:nextep_limit()]
 		hidden_data = get_hidden_progress_items(watched_indicators)
 		data = [i for i in data if not i['media_ids']['tmdb'] in hidden_data]
-		if watched_indicators == 1: resformat, resinsert, list_type = '%Y-%m-%dT%H:%M:%S.%fZ', '2000-01-01T00:00:00.000Z', 'episode.next_trakt'
+		if watched_indicators: resformat, resinsert, list_type = '%Y-%m-%dT%H:%M:%S.%fZ', '2000-01-01T00:00:00.000Z', 'episode.next_trakt'
 		else: resformat, resinsert, list_type = '%Y-%m-%d %H:%M:%S', '2000-01-01 00:00:00', 'episode.next_fenlight'
 		if include_unwatched != 0:
 			if include_unwatched in (1, 3):
 				try:
-					original_list = trakt_watchlist('watchlist', 'tvshow')
+					original_list = tracking.watchlist_shows()
 					unwatched.extend([{'media_ids': i['media_ids'], 'season': 1, 'episode': 0, 'unwatched': True, 'title': i['title']} for i in original_list])
 				except: pass
 			if include_unwatched in (2, 3):
@@ -313,7 +312,7 @@ def build_single_episode(list_type, params={}):
 	elif list_type == 'episode.recently_watched': data = get_recently_watched('episode')
 	elif list_type == 'episode.trakt':
 		recently_aired = params.get('recently_aired', None)
-		data = trakt_get_my_calendar(recently_aired, get_datetime())
+		data = tracking.get_my_calendar(recently_aired, get_datetime())
 		list_type = 'episode.trakt_recently_aired' if recently_aired else 'episode.trakt_calendar'
 		if flatten_episodes():
 			try:

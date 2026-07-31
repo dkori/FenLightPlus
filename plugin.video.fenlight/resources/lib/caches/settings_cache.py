@@ -7,8 +7,15 @@ from caches.base_cache import connect_database
 numeric_input = kodi_utils.numeric_input
 kodi_dialog, ok_dialog, select_dialog, confirm_dialog = kodi_utils.kodi_dialog, kodi_utils.ok_dialog, kodi_utils.select_dialog, kodi_utils.confirm_dialog
 default_addon_fanart, get_property, set_property, notification = kodi_utils.addon_fanart(), kodi_utils.get_property, kodi_utils.set_property, kodi_utils.notification
+clear_property, mask_key = kodi_utils.clear_property, kodi_utils.mask_key
 tmdb_default_api, trakt_default_id, trakt_default_secret = kodi_utils.tmdb_default_api, kodi_utils.trakt_default_id, kodi_utils.trakt_default_secret
+simkl_default_client = kodi_utils.simkl_default_client
+tmdb_default_read_token = kodi_utils.tmdb_default_read_token
 boolean_dict = {'true': 'false', 'false': 'true'}
+secret_setting_ids = frozenset({'trakt.client', 'trakt.secret', 'tmdb_api', 'tmdb_read_access_token',
+								'simkl.client', 'omdb_api', 'oc.token', 'ed.token', 'tb.token', 'easynews_password'})
+password_setting_ids = frozenset({'easynews_password'})
+default_key_label = '**DEFAULT**'
 
 BASE_GET = 'SELECT setting_value from settings WHERE setting_id = ?'
 GET_MANY = 'SELECT setting_id, setting_value FROM settings WHERE setting_id in (%s)'
@@ -65,9 +72,15 @@ class SettingsCache:
 
 	def set_memory_cache(self, setting_id, setting_value):
 		set_property('fenlight.%s' % setting_id, setting_value)
+		if setting_id in secret_setting_ids:
+			set_property('fenlight.%s.display' % setting_id, secret_display_value(setting_id, setting_value))
+			set_property('fenlight.%s.is_default' % setting_id, 'true' if is_default_setting(setting_id, setting_value) else 'false')
 
 	def delete_memory_cache(self, setting_id):
 		clear_property('fenlight.%s' % setting_id)
+		if setting_id in secret_setting_ids:
+			clear_property('fenlight.%s.display' % setting_id)
+			clear_property('fenlight.%s.is_default' % setting_id)
 
 	def setting_info(self, setting_id):
 		return [i for i in default_settings if i['setting_id'] == setting_id][0]
@@ -80,6 +93,19 @@ class SettingsCache:
 		except: return False
 
 settings_cache = SettingsCache()
+
+def is_default_setting(setting_id, setting_value):
+	# True only when the setting still holds the default shipped in fenlight_keys.py.
+	setting_info = default_setting_values(setting_id)
+	if not setting_info: return False
+	setting_default = setting_info.get('setting_default')
+	if not setting_default or setting_default in ('empty_setting', 'None'): return False
+	return str(setting_value) == str(setting_default)
+
+def secret_display_value(setting_id, setting_value):
+	if setting_id in password_setting_ids: return mask_key(setting_value)
+	if is_default_setting(setting_id, setting_value): return default_key_label
+	return setting_value
 
 def set_setting(setting_id, value):
 	settings_cache.set(setting_id, value)
@@ -130,11 +156,12 @@ def set_boolean(params):
 	set_setting(setting, boolean_dict[get_setting('fenlight.%s' % setting)])
 
 def set_string(params):
-	current_value = get_setting('fenlight.%s' % params['setting_id'])
-	current_value = current_value.replace('empty_setting', '')
+	setting_id = params['setting_id']
+	if setting_id in secret_setting_ids: current_value = ''
+	else: current_value = get_setting('fenlight.%s' % setting_id).replace('empty_setting', '')
 	new_value = kodi_dialog().input('', defaultt=current_value)
 	if not new_value and not confirm_dialog(text='Enter Blank Value?', ok_label='Yes', cancel_label='Re-Enter Value', default_control=11): return set_string(params)
-	set_setting(params['setting_id'], new_value)
+	set_setting(setting_id, new_value)
 
 def set_numeric(params):
 	setting_id = params['setting_id']
@@ -169,6 +196,10 @@ def set_from_list(params):
 	if not new_value: return
 	setting_value = new_value[1]
 	set_setting(setting_id, setting_value)
+	if setting_id == 'watched_indicators':
+		from threading import Thread
+		from modules import tracking
+		Thread(target=tracking.sync_activities).start()
 
 def set_source_folder_path(params):
 	setting_id = params['setting_id']
@@ -205,10 +236,17 @@ default_settings = [
 {'setting_id': 'update.username', 'setting_type': 'string', 'setting_default': 'thejason40'},
 {'setting_id': 'update.location', 'setting_type': 'string', 'setting_default': 'thejason40.github.io'},
 #==================== Watched Indicators
-{'setting_id': 'watched_indicators', 'setting_type': 'action', 'setting_default': '0', 'settings_options': {'0': 'Fen Light', '1': 'Trakt'}},
+{'setting_id': 'watched_indicators', 'setting_type': 'action', 'setting_default': '0', 'settings_options': {'0': 'Fen Light', '1': 'Trakt', '2': 'Simkl'}},
 #======+============= Trakt Cache
 {'setting_id': 'trakt.sync_interval', 'setting_type': 'action', 'setting_default': '30', 'min_value': '5', 'max_value': '600'},
 {'setting_id': 'trakt.refresh_widgets', 'setting_type': 'boolean', 'setting_default': 'true'},
+#======+============= Simkl Cache
+# No simkl.sync_interval — the background monitor doesn't poll for Simkl (see tracking_sync_interval).
+{'setting_id': 'simkl.refresh_widgets', 'setting_type': 'boolean', 'setting_default': 'true'},
+{'setting_id': 'simkl.flatten_episodes', 'setting_type': 'boolean', 'setting_default': 'false'},
+{'setting_id': 'simkl.calendar_sort_order', 'setting_type': 'action', 'setting_default': '0', 'settings_options': {'0': 'Descending', '1': 'Ascending'}},
+{'setting_id': 'simkl.calendar_previous_days', 'setting_type': 'action', 'setting_default': '7', 'min_value': '0', 'max_value': '14'},
+{'setting_id': 'simkl.calendar_future_days', 'setting_type': 'action', 'setting_default': '7', 'min_value': '0', 'max_value': '14'},
 #==================== UTC Time Offset
 {'setting_id': 'datetime.offset', 'setting_type': 'action', 'setting_default': '0', 'min_value': '-15', 'max_value': '15'},
 #==================== Downloads
@@ -295,9 +333,13 @@ default_settings = [
 {'setting_id': 'trakt.user', 'setting_type': 'string', 'setting_default': 'empty_setting'},
 {'setting_id': 'trakt.client', 'setting_type': 'string', 'setting_default': trakt_default_id},
 {'setting_id': 'trakt.secret', 'setting_type': 'string', 'setting_default': trakt_default_secret},
+#==================== Simkl
+{'setting_id': 'simkl.user', 'setting_type': 'string', 'setting_default': 'empty_setting'},
+{'setting_id': 'simkl.token', 'setting_type': 'string', 'setting_default': 'empty_setting'},
+{'setting_id': 'simkl.client', 'setting_type': 'string', 'setting_default': simkl_default_client},
 #==================== TMDb
 {'setting_id': 'tmdb_api', 'setting_type': 'string', 'setting_default': tmdb_default_api},
-{'setting_id': 'tmdb_read_access_token', 'setting_type': 'string', 'setting_default': 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3ZTRkNDhlNjhhYmI5YTRmMmM4NmExY2MxNDNjZDhiNSIsIm5iZiI6MTY5OTAwNzUyNy42OTQwMDAyLCJzdWIiOiI2NTQ0Y2MyNzQxYTU2MTMzNjkzOTkwMjMiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.qsT2zyh3yRDVSyu2aboWEq4rxuz5WjZsABxJ7lb2-po'},
+{'setting_id': 'tmdb_read_access_token', 'setting_type': 'string', 'setting_default': tmdb_default_read_token},
 {'setting_id': 'tmdb.access_token', 'setting_type': 'string', 'setting_default': 'empty_setting'},
 {'setting_id': 'tmdb.account_id', 'setting_type': 'string', 'setting_default': 'empty_setting'},
 #==================== OMDb

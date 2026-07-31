@@ -1,11 +1,11 @@
 import time
 import requests
 from threading import Thread
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode
 from caches.settings_cache import get_setting, set_setting
 from caches.main_cache import cache_object
 from modules.source_utils import supported_video_extensions, seas_ep_filter, EXTRAS
-from modules.kodi_utils import make_session, kodi_dialog, ok_dialog, notification, confirm_dialog, sleep, progress_dialog
+from modules.kodi_utils import make_session, kodi_dialog, ok_dialog, notification, confirm_dialog, sleep, progress_dialog, make_qr
 from modules.utils import copy2clip, get_datetime, jsondate_to_datetime as js2date
 # from modules.kodi_utils import logger
 
@@ -181,7 +181,7 @@ class TorBoxAPI:
 		except Exception: expires_in = 300
 		try: copy2clip(user_code)
 		except Exception: pass
-		qr_icon = 'https://qrcode.tec-it.com/API/QRCode?data=%s&backcolor=%%23ffffff&size=small&quietzone=1&errorcorrection=H' % quote(verify_url, safe='')
+		tiny_url, qr_icon = make_qr(verify_url)
 		content = 'Scan the QR code or navigate to: [B]%s[/B][CR]Enter this code: [B]%s[/B]  (copied to clipboard)' % (verify_url, user_code)
 		progressDialog = progress_dialog('TorBox Authorize', qr_icon)
 		progressDialog.update(content, 0)

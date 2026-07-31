@@ -27,6 +27,7 @@ trakt_main = ('trakt_tv_trending', 'trakt_tv_trending_recent', 'trakt_tv_trendin
 'trakt_anime_trending', 'trakt_anime_trending_recent', 'trakt_anime_most_watched', 'trakt_anime_most_favorited')
 trakt_special = ('trakt_tv_certifications', 'trakt_anime_certifications')
 trakt_personal = ('trakt_collection', 'trakt_watchlist', 'trakt_collection_lists', 'trakt_watchlist_lists', 'trakt_favorites')
+simkl_personal = ('simkl_watching', 'simkl_plantowatch', 'simkl_completed', 'simkl_hold', 'simkl_dropped')
 view_mode, content_type = 'view.tvshows', 'tvshows'
 internal_nav_check = ('build_season_list', 'build_episode_list')
 
@@ -87,7 +88,7 @@ class TVShows:
 				data = function(key_id, page_no)
 				self.list = [i['show']['ids'] for i in data]
 				if not is_random: self.new_page = {'new_page': string(page_no + 1), 'key_id': key_id}
-			elif self.action in trakt_personal:
+			elif self.action in trakt_personal or self.action in simkl_personal:
 				self.id_type = 'trakt_dict'
 				data = function('shows', page_no)
 				if self.action in ('trakt_collection_lists', 'trakt_watchlist_lists', 'trakt_favorites'): total_pages = 1
@@ -218,7 +219,7 @@ class TVShows:
 		self.all_episodes, self.open_extras = default_all_episodes(), media_open_action('tvshow') == 1
 		self.is_folder = False if self.open_extras else True
 		self.watched_indicators = watched_indicators()
-		self.watched_title = 'Trakt' if self.watched_indicators == 1 else 'Fen Light'
+		self.watched_title = 'Trakt' if self.watched_indicators == 1 else 'Simkl' if self.watched_indicators == 2 else 'Fen Light'
 		self.watched_info = watched_info_tvshow(get_database(self.watched_indicators))
 		self.window_command = 'ActivateWindow(Videos,%s,return)' if self.is_external else 'Container.Update(%s)'
 		if self.custom_order:

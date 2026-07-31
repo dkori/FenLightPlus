@@ -188,6 +188,24 @@ def trakt_manager_choice(params):
 	if choice == 'Add': trakt_api.trakt_add_to_list(params)
 	else: trakt_api.trakt_remove_from_list(params)
 
+def simkl_manager_choice(params):
+	if not settings.simkl_user_active(): return notification('No Active Simkl Account', 3500)
+	icon = params.get('icon', None) or get_icon('simkl')
+	media_type = params.get('media_type')
+	tmdb_id = params.get('tmdb_id')
+	if media_type in ('movie', 'movies'):
+		choices = [('Plan to Watch', 'plantowatch'), ('Completed', 'completed'), ('Dropped', 'dropped'), ('Remove from Simkl', 'remove')]
+	else:
+		choices = [('Watching', 'watching'), ('Plan to Watch', 'plantowatch'), ('Completed', 'completed'), ('On Hold', 'hold'), ('Dropped', 'dropped'), ('Remove from Simkl', 'remove')]
+	list_items = [{'line1': item[0], 'icon': icon} for item in choices]
+	kwargs = {'items': json.dumps(list_items), 'heading': 'Simkl Manager'}
+	choice = select_dialog([i[1] for i in choices], **kwargs)
+	if choice == None: return
+	from apis import simkl_api
+	media_key = 'movies' if media_type in ('movie', 'movies') else 'shows'
+	if choice == 'remove': simkl_api.simkl_add_to_list(media_key, tmdb_id, remove=True)
+	else: simkl_api.simkl_add_to_list(media_key, tmdb_id, to=choice)
+
 def trakt_trakt_to_tmdb_choice(params, choices = []):
 	
 	if not trakt_user_active(): return notification('No Active Trakt Account', 3000)
@@ -716,6 +734,7 @@ def options_menu_choice(params, meta=None):
 	if from_extras:
 		if menu_type in ('movie', 'episode'): listing_append(('Playback Options', 'Scrapers Options', 'playback_choice'))
 		if trakt_user_active(): listing_append(('Trakt Lists Manager', '', 'trakt_manager'))
+		if settings.simkl_user_active(): listing_append(('Simkl Manager', '', 'simkl_manager'))
 		listing_append(('Favorites Manager', '', 'favorites_choice'))
 	if menu_type == 'tvshow': listing_append(('Play Random', 'Based On %s' % rootname, 'random'))
 	if menu_type in ('tvshow', 'season'):
@@ -779,6 +798,8 @@ def options_menu_choice(params, meta=None):
 		return random_choice({'meta': meta, 'poster': poster})
 	if choice == 'trakt_manager':
 		return trakt_manager_choice({'tmdb_id': tmdb_id, 'imdb_id': imdb_id, 'tvdb_id': tvdb_id or 'None', 'media_type': content, 'icon': poster})
+	if choice == 'simkl_manager':
+		return simkl_manager_choice({'tmdb_id': tmdb_id, 'imdb_id': imdb_id, 'tvdb_id': tvdb_id or 'None', 'media_type': content, 'icon': poster})
 	if choice == 'favorites_choice':
 		return favorites_choice({'media_type': content if content in ('movie', 'tvshow') else 'tvshow', 'tmdb_id': tmdb_id, 'title': title, 'is_anime': is_anime})
 	if choice == 'toggle_autoplay':

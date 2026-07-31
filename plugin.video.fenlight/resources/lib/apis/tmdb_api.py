@@ -645,9 +645,8 @@ def auth():
 	response = requests.post(url, headers=head, timeout=t_o).json()
 	if not response['success']: return
 	url = 'https://www.themoviedb.org/auth/access?request_token=%s' % response['request_token']
-	try: 
-		tiny_url = requests.get('http://tinyurl.com/api-create.php', params={'url': url}, timeout=t_o).text
-		qr_icon = 'https://qrcode.tec-it.com/API/QRCode?data=%s&backcolor=%%23ffffff&size=small&quietzone=1&errorcorrection=H' % requests.utils.quote(tiny_url)
+	try:
+		tiny_url, qr_icon = kodi_utils.make_qr(url)
 	except: pass
 	
 	content = 'Authorize TMDB Account[CR]Scan the QR code or navigate to: [B]%s[/B]' % tiny_url
