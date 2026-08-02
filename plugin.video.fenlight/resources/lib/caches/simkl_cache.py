@@ -8,6 +8,8 @@ DELETE = 'DELETE FROM simkl_data WHERE id=?'
 DELETE_LIKE = 'DELETE FROM simkl_data WHERE id LIKE "%s"'
 WATCHED_INSERT = 'INSERT OR IGNORE INTO watched VALUES (?, ?, ?, ?, ?, ?)'
 WATCHED_DELETE = 'DELETE FROM watched WHERE db_type = ?'
+SHOW_DELETE = 'DELETE FROM watched WHERE db_type = ? AND media_id = ?'
+SEASONS_SELECT = 'SELECT DISTINCT season FROM watched WHERE db_type = ? AND media_id = ?'
 PROGRESS_INSERT = 'INSERT OR IGNORE INTO progress VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 PROGRESS_DELETE = 'DELETE FROM progress WHERE db_type = ?'
 STATUS_INSERT = 'INSERT INTO watched_status VALUES (?, ?, ?)'
@@ -61,12 +63,12 @@ class SimklWatched():
 	# --- Phase-2 delta merge: touch only the items in the delta, leave everything else intact ---
 	def replace_show(self, media_id, insert_list):
 		dbcon = connect_database('simkl_db')
-		dbcon.execute('DELETE FROM watched WHERE db_type = "episode" AND media_id = ?', (str(media_id),))
+		dbcon.execute(SHOW_DELETE, ('episode', str(media_id)))
 		if insert_list: dbcon.executemany(WATCHED_INSERT, insert_list)
 
 	def remove_show(self, media_id):
 		dbcon = connect_database('simkl_db')
-		dbcon.execute('DELETE FROM watched WHERE db_type = "episode" AND media_id = ?', (str(media_id),))
+		dbcon.execute(SHOW_DELETE, ('episode', str(media_id)))
 
 	def upsert_movie(self, row):
 		dbcon = connect_database('simkl_db')
@@ -74,7 +76,7 @@ class SimklWatched():
 
 	def remove_movie(self, media_id):
 		dbcon = connect_database('simkl_db')
-		dbcon.execute('DELETE FROM watched WHERE db_type = "movie" AND media_id = ?', (str(media_id),))
+		dbcon.execute(SHOW_DELETE, ('movie', str(media_id)))
 
 	# --- Post-write local echo: single-row writes fed from a write response, not a re-fetch ---
 	def upsert_progress(self, row):
@@ -86,7 +88,7 @@ class SimklWatched():
 	def get_watched_seasons(self, media_id):
 		try:
 			dbcon = connect_database('simkl_db')
-			rows = dbcon.execute('SELECT DISTINCT season FROM watched WHERE db_type = "episode" AND media_id = ?', (str(media_id),)).fetchall()
+			rows = dbcon.execute(SEASONS_SELECT, ('episode', str(media_id))).fetchall()
 			return sorted(int(r[0]) for r in rows if r[0] is not None)
 		except: return []
 

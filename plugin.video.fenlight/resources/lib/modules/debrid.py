@@ -22,6 +22,7 @@ def manual_add_magnet_to_cloud(params):
 	show_busy_dialog()
 	function = [i[1] for i in debrid_list_modules if i[0] == params['provider']][0]
 	result = function().create_transfer(params['magnet_url'])
+	if isinstance(result, tuple): result = result[0] or 'failed'
 	function().clear_cache()
 	hide_busy_dialog()
 	if result == 'failed': notification('Failed')

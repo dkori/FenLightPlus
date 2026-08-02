@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
-import json
 from datetime import datetime
-from apis.alldebrid_api import AllDebridAPI
+from apis.alldebrid_api import AllDebridAPI, _flatten_files
 from modules import kodi_utils
 from modules.source_utils import supported_video_extensions
 from modules.utils import clean_file_name, normalize
@@ -24,7 +23,7 @@ def ad_cloud(folder_id=None):
 				folder_name, folder_id = item['filename'], item['id']
 				clean_folder_name = clean_file_name(normalize(folder_name)).upper()
 				display = '%02d | [B]FOLDER[/B] | [I]%s [/I]' % (count, clean_folder_name)
-				url_params = {'mode': 'alldebrid.browse_ad_cloud', 'id': folder_id, 'folder': json.dumps(item['links'])}
+				url_params = {'mode': 'alldebrid.browse_ad_cloud', 'id': folder_id}
 				delete_params = {'mode': 'alldebrid.delete', 'id': folder_id}
 				cm.append(('[B]Delete Folder[/B]','RunPlugin(%s)' % build_url(delete_params)))
 				url = build_url(url_params)
@@ -44,7 +43,7 @@ def ad_cloud(folder_id=None):
 	end_directory(handle)
 	set_view_mode('view.premium')
 
-def browse_ad_cloud(folder):
+def browse_ad_cloud(magnet_id):
 	def _builder():
 		for count, item in enumerate(links, 1):
 			try:
@@ -66,7 +65,7 @@ def browse_ad_cloud(folder):
 				info_tag.setPlot(' ')
 				yield (url, listitem, False)
 			except: pass
-	try: links = [i for i in json.loads(folder) if i['filename'].lower().endswith(tuple(extensions))]
+	try: links = [i for i in _flatten_files(AllDebrid.magnet_files([magnet_id])) if i['filename'].lower().endswith(tuple(extensions))]
 	except: links = []
 	handle = int(sys.argv[1])
 	add_items(handle, list(_builder()))

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from threading import Thread
-from apis.alldebrid_api import AllDebridAPI
+from apis.alldebrid_api import AllDebridAPI, _flatten_files
 from modules import source_utils
 from modules.utils import clean_file_name, normalize
 from modules.settings import enabled_debrids_check, filter_by_name
@@ -74,7 +74,7 @@ class source:
 
 	def _scrape_folders(self, folder_info):
 		try:
-			links = folder_info['links']
+			links = _flatten_files(AllDebrid.magnet_files([folder_info['id']]))
 			append = self.scrape_results.append
 			links = [i for i in links if i['filename'].lower().endswith(tuple(extensions))]
 			for item in links:

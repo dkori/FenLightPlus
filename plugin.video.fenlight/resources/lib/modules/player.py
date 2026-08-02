@@ -188,15 +188,30 @@ class FenLightPlayer(xbmc_player):
 					progress_params = {'media_type': self.media_type, 'tmdb_id': self.tmdb_id, 'curr_time': self.curr_time, 'total_time': self.total_time,
 									'title': self.title, 'season': self.season, 'episode': self.episode, 'from_playback': 'true'}
 					Thread(target=self.run_media_progress, args=(set_bookmark, progress_params)).start()
-		except: pass
+		except Exception as e: ku.logger('fenlight.player', 'marker failed: %s' % e)
 
 	def run_media_progress(self, function, params):
 		try: function(params)
-		except: pass
+		except Exception as e: ku.logger('fenlight.player', 'media progress failed: %s' % e)
 		try:
 			from modules import tracking
 			if tracking.is_external(): tracking.sync_activities()
 		except: pass
+		try: ku.kodi_refresh()
+		except: pass
+
+	def onPlayBackSeek(self, time, seekOffset):
+		try:
+			if self.is_generic or not self.total_time: return
+			self.curr_time = time / 1000.0
+			self.current_point = round(float(self.curr_time / self.total_time * 100), 1)
+		except: pass
+
+	def onPlayBackEnded(self):
+		try:
+			if self.is_generic or self.media_marked: return
+			self.media_watched_marker(force_watched=True)
+		except Exception as e: ku.logger('fenlight.player', 'onPlayBackEnded failed: %s' % e)
 
 	def run_next_ep(self):
 		from modules.episode_tools import EpisodeTools
@@ -248,6 +263,7 @@ class FenLightPlayer(xbmc_player):
 			self.meta_get, self.kodi_monitor, self.playback_percent = self.meta.get, xbmc_monitor(), self.sources_object.playback_percent or 0.0
 			self.playing_filename = self.sources_object.playing_filename
 			self.media_marked, self.nextep_info_gathered = False, False
+			self.current_point, self.total_time, self.curr_time = 0, 0, 0
 			self.playback_successful, self.cancel_all_playback = None, False
 			self.playing_item = self.sources_object.playing_item
 

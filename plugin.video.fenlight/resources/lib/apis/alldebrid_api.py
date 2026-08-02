@@ -14,10 +14,25 @@ path_exists, get_icon = kodi_utils.path_exists, kodi_utils.get_icon
 show_busy_dialog, confirm_dialog = kodi_utils.show_busy_dialog, kodi_utils.confirm_dialog
 sleep, ok_dialog = kodi_utils.sleep, kodi_utils.ok_dialog
 progress_dialog, notification, hide_busy_dialog, xbmc_monitor = kodi_utils.progress_dialog, kodi_utils.notification, kodi_utils.hide_busy_dialog, kodi_utils.xbmc_monitor
-base_url = 'https://api.alldebrid.com/v4/'
+logger = kodi_utils.logger
+base_url = 'https://api.alldebrid.com/'
 user_agent = 'Fen Light for Kodi'
 timeout = 20.0
+files_chunk_size = 50
 icon = get_icon('alldebrid')
+
+def _flatten_files(tree):
+	results = []
+	append = results.append
+	def _walk(nodes):
+		for node in nodes:
+			if not isinstance(node, dict): continue
+			if node.get('l'): append({'filename': node.get('n', ''), 'size': node.get('s', 0), 'link': node['l']})
+			children = node.get('e') or node.get('files')
+			if children: _walk(children)
+	try: _walk(tree or [])
+	except Exception as e: logger('alldebrid', 'flatten files error: %s' % e)
+	return results
 
 class AllDebridAPI:
 	def __init__(self):
@@ -26,25 +41,27 @@ class AllDebridAPI:
 
 	def auth(self):
 		self.token = ''
-		url = base_url + 'pin/get?agent=%s' % user_agent
-		response = requests.get(url, timeout=timeout).json()
+		response = requests.get(base_url + 'v4/pin/get', timeout=timeout).json()
 		response = response['data']
 		expires_in = int(response['expires_in'])
-		poll_url = response['check_url']
 		user_code = response['pin']
+		poll_url = response.get('check_url')
+		if not poll_url: poll_url = base_url + 'v4/pin/check?check=%s&pin=%s' % (response.get('check'), user_code)
 		try: copy2clip(user_code)
 		except: pass
 		sleep_interval = 5
-		content = 'Authorize Debrid Services[CR]Navigate to: [B]%s[/B][CR]Enter the following code: [B]%s[/B]' % (response.get('base_url'), user_code)
-		progressDialog = progress_dialog('All Debrid Authorize', get_icon('ad_qrcode'))
+		content = 'Scan the QR Code or navigate to: [B]%s[/B][CR]Enter the following code: [B]%s[/B]' % (response.get('base_url'), user_code)
+		tiny_url, qr_icon = kodi_utils.make_qr(response.get('user_url') or response.get('base_url'))
+		progressDialog = progress_dialog('All Debrid Authorize', qr_icon)
 		progressDialog.update(content, 0)
 		start, time_passed = time.time(), 0
 		sleep(2000)
 		while not progressDialog.iscanceled() and time_passed < expires_in and not self.token:
 			sleep(1000 * sleep_interval)
-			response = requests.get(poll_url, timeout=timeout).json()
-			response = response['data']
-			activated = response['activated']
+			try: response = requests.get(poll_url, timeout=timeout).json()
+			except: continue
+			response = response.get('data', {})
+			activated = response.get('activated')
 			if not activated:
 				time_passed = time.time() - start
 				progress = int(100 * time_passed/float(expires_in))
@@ -61,7 +78,8 @@ class AllDebridAPI:
 		except: pass
 		if self.token:
 			sleep(2000)
-			account_info = self._get('user')
+			account_info = self.account_info()
+			if not account_info: return ok_dialog(text='Error')
 			set_setting('ad.account_id', str(account_info['user']['username']))
 			set_setting('ad.enabled', 'true')
 			ok_dialog(text='Success')
@@ -73,48 +91,49 @@ class AllDebridAPI:
 		notification('All Debrid Authorization Reset', 3000)
 
 	def account_info(self):
-		response = self._get('user')
-		return response
-
-	def check_cache(self, hashes):
-		data = {'magnets[]': hashes}
-		response = self._post('magnet/instant', data)
-		return response
-
-	def check_single_magnet(self, hash_string):
-		cache_info = self.check_cache(hash_string)['magnets'][0]
-		return cache_info['instant']
+		return self._request('v4/user')
 
 	def user_cloud(self):
-		url = 'magnet/status'
-		string = 'ad_user_cloud'
-		return cache_object(self._get, string, url, False, 0.03)
+		return cache_object(self._user_cloud, 'ad_user_cloud', [], False, 0.03)
+
+	def _user_cloud(self):
+		result = self._request('v4.1/magnet/status', {'status': 'ready'})
+		magnets = (result or {}).get('magnets') or []
+		if isinstance(magnets, dict): magnets = [magnets]
+		return {'magnets': magnets}
 
 	def unrestrict_link(self, link):
-		url = 'link/unlock'
-		url_append = '&link=%s' % link
-		response = self._get(url, url_append)
-		try: return response['link']
+		result = self._request('v4/link/unlock', {'link': link})
+		try: return result['link']
 		except: return None
 
 	def create_transfer(self, magnet):
-		url = 'magnet/upload'
-		url_append = '&magnet=%s' % magnet
-		result = self._get(url, url_append)
-		result = result['magnets'][0]
-		return result.get('id', '')
+		result = self._request('v4/magnet/upload', {'magnets[]': [magnet]})
+		try: result = result['magnets'][0]
+		except: return None, False
+		if result.get('error'):
+			logger('alldebrid', 'magnet/upload: %s' % result['error'])
+			return None, False
+		return result.get('id', ''), result.get('ready', False) is True
 
 	def list_transfer(self, transfer_id):
-		url = 'magnet/status'
-		url_append = '&id=%s' % transfer_id
-		result = self._get(url, url_append)
-		result = result['magnets']
-		return result
+		result = self._request('v4.1/magnet/status', {'id': transfer_id})
+		magnets = (result or {}).get('magnets')
+		if isinstance(magnets, list): magnets = magnets[0] if magnets else None
+		return magnets
+
+	def magnet_files(self, transfer_ids):
+		transfer_ids = [str(i) for i in transfer_ids]
+		results = []
+		for index in range(0, len(transfer_ids), files_chunk_size):
+			result = self._request('v4/magnet/files', {'id[]': transfer_ids[index:index+files_chunk_size]})
+			if not result: continue
+			results.extend(result.get('magnets') or [])
+		return results
 
 	def delete_transfer(self, transfer_id):
-		url = 'magnet/delete'
-		url_append = '&id=%s' % transfer_id
-		result = self._get(url, url_append)
+		result = self._request('v4/magnet/delete', {'id': transfer_id})
+		if not result: return False
 		return result.get('message', '') == 'Magnet was successfully deleted'
 
 	def resolve_magnet(self, magnet_url, info_hash, store_to_cloud, title, season, episode):
@@ -122,22 +141,24 @@ class AllDebridAPI:
 			file_url, media_id, transfer_id = None, None, None
 			extensions = supported_video_extensions()
 			correct_files = []
-			correct_files_append = correct_files.append
-			transfer_id = self.create_transfer(magnet_url)
-			elapsed_time, transfer_finished = 0, False
-			sleep(1000)
-			while elapsed_time <= 4 and not transfer_finished:
-				transfer_info = self.list_transfer(transfer_id)
-				if not transfer_info: break
-				status_code = transfer_info['statusCode']
-				if status_code > 4: break
-				elapsed_time += 1
-				if status_code == 4: transfer_finished = True
-				elif status_code < 4: sleep(1000)
+			transfer_id, transfer_finished = self.create_transfer(magnet_url)
+			if not transfer_id: return None
+			elapsed_time = 0
+			if not transfer_finished:
+				sleep(1000)
+				while elapsed_time <= 15 and not transfer_finished:
+					transfer_info = self.list_transfer(transfer_id)
+					if not transfer_info: break
+					status_code = transfer_info['statusCode']
+					if status_code > 4: break
+					elapsed_time += 1
+					if status_code == 4: transfer_finished = True
+					elif status_code < 4: sleep(1000)
 			if not transfer_finished:
 				self.delete_transfer(transfer_id)
 				return None
-			valid_results = [i for i in transfer_info['links'] if any(i.get('filename').lower().endswith(x) for x in extensions) and not i.get('link', '') == '']
+			transfer_files = _flatten_files(self.magnet_files([transfer_id]))
+			valid_results = [i for i in transfer_files if any(i.get('filename').lower().endswith(x) for x in extensions) and not i.get('link', '') == '']
 			if valid_results:
 				if season:
 					correct_files = [i for i in valid_results if seas_ep_filter(season, episode, i['filename'])]
@@ -158,29 +179,31 @@ class AllDebridAPI:
 				if transfer_id: self.delete_transfer(transfer_id)
 			except: pass
 			return None
-	
+
 	def display_magnet_pack(self, magnet_url, info_hash):
 		from modules.source_utils import supported_video_extensions
 		try:
 			transfer_id = None
 			extensions = supported_video_extensions()
-			transfer_id = self.create_transfer(magnet_url)
-			elapsed_time, transfer_finished = 0, False
-			sleep(1000)
-			while elapsed_time <= 4 and not transfer_finished:
-				transfer_info = self.list_transfer(transfer_id)
-				if not transfer_info: break
-				status_code = transfer_info['statusCode']
-				if status_code > 4: break
-				elapsed_time += 1
-				if status_code == 4: transfer_finished = True
-				elif status_code < 4: sleep(1000)
+			transfer_id, transfer_finished = self.create_transfer(magnet_url)
+			if not transfer_id: return None
+			elapsed_time = 0
+			if not transfer_finished:
+				sleep(1000)
+				while elapsed_time <= 15 and not transfer_finished:
+					transfer_info = self.list_transfer(transfer_id)
+					if not transfer_info: break
+					status_code = transfer_info['statusCode']
+					if status_code > 4: break
+					elapsed_time += 1
+					if status_code == 4: transfer_finished = True
+					elif status_code < 4: sleep(1000)
 			if not transfer_finished:
 				self.delete_transfer(transfer_id)
 				return None
 			end_results = []
 			append = end_results.append
-			for item in transfer_info.get('links'):
+			for item in _flatten_files(self.magnet_files([transfer_id])):
 				if any(item.get('filename').lower().endswith(x) for x in extensions) and not item.get('link', '') == '':
 					append({'link': item['link'], 'filename': item['filename'], 'size': item['size']})
 			self.delete_transfer(transfer_id)
@@ -191,25 +214,18 @@ class AllDebridAPI:
 			except: pass
 			return None
 
-	def _get(self, url, url_append=''):
-		result = None
+	def _request(self, path, data=None):
 		try:
 			if self.token in ('empty_setting', ''): return None
-			url = base_url + url + '?agent=%s&apikey=%s' % (user_agent, self.token) + url_append
-			result = requests.get(url, timeout=timeout).json()
-			if result.get('status') == 'success' and 'data' in result: result = result['data']
-		except: pass
-		return result
-
-	def _post(self, url, data={}):
-		result = None
-		try:
-			if self.token in ('empty_setting', ''): return None
-			url = base_url + url + '?agent=%s&apikey=%s' % (user_agent, self.token)
-			result = requests.post(url, data=data, timeout=timeout).json()
-			if result.get('status') == 'success' and 'data' in result: result = result['data']
-		except: pass
-		return result
+			headers = {'Authorization': 'Bearer %s' % self.token, 'User-Agent': user_agent}
+			result = requests.post(base_url + path, headers=headers, data=data or {}, timeout=timeout).json()
+			if result.get('status') == 'success': return result.get('data')
+			error = result.get('error') or {}
+			logger('alldebrid', '%s: %s | %s' % (path, error.get('code', 'unknown_error'), error.get('message', result)))
+			return None
+		except Exception as e:
+			logger('alldebrid', '%s: %s' % (path, e))
+			return None
 
 	def clear_cache(self, clear_hashes=True):
 		try:

@@ -92,8 +92,8 @@ def clear_watchlist_data(list_type, media_type):
 		from caches.trakt_cache import clear_trakt_collection_watchlist_data
 		return clear_trakt_collection_watchlist_data(list_type, media_type)
 	if p == 'simkl':
-		from apis.simkl_api import simkl_sync_activities
-		return simkl_sync_activities()
+		from caches.simkl_cache import clear_simkl_status_data
+		return clear_simkl_status_data()
 
 def get_hidden_items(list_type):
 	if provider() == 'trakt':

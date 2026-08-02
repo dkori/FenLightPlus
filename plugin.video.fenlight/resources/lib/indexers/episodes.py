@@ -136,6 +136,18 @@ def build_episode_list(params):
 	end_directory(handle, cacheToDisc=False if is_external else True)
 	set_view_mode(list_view, content_type, is_external)
 
+def _simkl_nextep_sync():
+	def _run():
+		try:
+			from apis.simkl_api import simkl_sync_activities
+			if simkl_sync_activities() != 'success': return
+			if settings.tracking_refresh_widgets(): kodi_utils.run_plugin({'mode': 'kodi_refresh'})
+		except: pass
+	try:
+		from threading import Thread
+		Thread(target=_run).start()
+	except: pass
+
 def build_single_episode(list_type, params={}):
 	def _get_category_name():
 		try:
@@ -288,6 +300,7 @@ def build_single_episode(list_type, params={}):
 	watched_title = 'Trakt' if watched_indicators == 1 else 'Simkl' if watched_indicators == 2 else 'Fen Light'
 	category_name = _get_category_name()
 	if list_type == 'episode.next':
+		if watched_indicators == 2: _simkl_nextep_sync()
 		include_unwatched, include_unaired, nextep_content = nextep_include_unwatched(), nextep_include_unaired(), nextep_method()
 		sort_key, sort_direction = nextep_sort_key(), nextep_sort_direction()
 		include_airdate = nextep_include_airdate()

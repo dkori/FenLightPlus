@@ -20,6 +20,7 @@ simkl_watched_cache = simkl_cache.simkl_watched_cache
 simkl_data_cache = simkl_cache.simkl_cache
 cache_simkl_object, reset_activity = simkl_cache.cache_simkl_object, simkl_cache.reset_activity
 clear_all_simkl_cache_data = simkl_cache.clear_all_simkl_cache_data
+clear_simkl_status_data = simkl_cache.clear_simkl_status_data
 empty_setting_check = (None, 'empty_setting', '')
 API_ENDPOINT = 'https://api.simkl.com/%s'
 PIN_PAGE = 'https://simkl.com/pin/%s'
@@ -37,10 +38,12 @@ SYNC_STAMP_KEY = 'simkl_last_activities_check'
 _rate_lock = Lock()
 _last_request = [0.0]
 MIN_REQUEST_GAP = 0.5
+MIN_GET_GAP = 1.0
 
-def _rate_gate():
+def _rate_gate(is_get=False):
+	gap = MIN_GET_GAP if is_get else MIN_REQUEST_GAP
 	with _rate_lock:
-		wait = MIN_REQUEST_GAP - (time.time() - _last_request[0])
+		wait = gap - (time.time() - _last_request[0])
 		if wait > 0: sleep(int(wait * 1000))
 		_last_request[0] = time.time()
 
@@ -65,7 +68,8 @@ def call_simkl(path, params=None, data=None, is_delete=False, with_auth=True, me
 		token = get_setting('fenlight.simkl.token')
 		if token and token not in empty_setting_check: headers['Authorization'] = 'Bearer ' + token
 	def send_query():
-		_rate_gate()
+		is_write = method in ('post', 'delete') or data is not None or is_delete
+		_rate_gate(is_get=not is_write)
 		try:
 			if method == 'post' or data is not None:
 				return requests.post(API_ENDPOINT % path, params=call_params, json=data, headers=headers, timeout=timeout)
@@ -169,8 +173,7 @@ def simkl_authenticate(dummy=''):
 		except: set_setting('simkl.user', 'Simkl')
 		kodi_utils.set_property('fenlight.simkl.user', get_setting('fenlight.simkl.user'))
 		notification('Simkl Account Authorized', 3000)
-		simkl_sync_activities(force_update=True)
-		_offer_trakt_import()
+		if not _offer_trakt_import(): simkl_sync_activities(force_update=True)
 		return True
 	notification('Simkl Error Authorizing', 3000)
 	return False
@@ -178,8 +181,9 @@ def simkl_authenticate(dummy=''):
 def _offer_trakt_import():
 	try:
 		if settings.trakt_user_active() and confirm_dialog(heading='Import Trakt data', text='Import your Trakt data to Simkl?'):
-			import_from_trakt({})
-	except: pass
+			return bool(import_from_trakt({}))
+	except Exception as e: logger('SIMKL IMPORT ERROR', e)
+	return False
 
 def simkl_revoke_authentication(dummy=''):
 	set_setting('simkl.user', 'empty_setting')
@@ -398,8 +402,11 @@ def simkl_sync_activities(force_update=False, bypass_throttle=False):
 	except: return 'failed'
 	if not isinstance(latest, dict): return 'failed'
 	_activities_memo[0], _activities_memo[1] = time.time(), latest
-	cached = reset_activity(latest)
-	if not force_update and not _compare(latest.get('all', ''), cached.get('all', '')): return 'not needed'
+	previous = simkl_data_cache.get('simkl_get_activity')
+	cached = previous if isinstance(previous, dict) else simkl_cache.default_activities()
+	if not force_update and not _compare(latest.get('all', ''), cached.get('all', '')):
+		simkl_data_cache.set('simkl_get_activity', latest)
+		return 'not needed'
 	refresh_movies_watched = refresh_tv_watched = refresh_playback = False
 	l_movies, c_movies = _section(latest, 'movies'), _section(cached, 'movies')
 	l_tv, c_tv = _section(latest, 'tv_shows'), _section(cached, 'tv_shows')
@@ -432,6 +439,7 @@ def simkl_sync_activities(force_update=False, bypass_throttle=False):
 		progress_info = simkl_playback_progress()
 		simkl_progress_movies(progress_info)
 		simkl_progress_tv(progress_info)
+	simkl_data_cache.set('simkl_get_activity', latest)
 	from caches.simkl_cache import clear_simkl_calendar
 	clear_simkl_calendar()
 	return 'success'
@@ -471,10 +479,12 @@ def simkl_mark_watched(action, media, media_id, tvdb_id=0, season=None, episode=
 		data = {'shows': [{'ids': ids, 'seasons': [{'number': int(season)}]}]}
 	result = call_simkl(url, data=data)
 	if result is None or _write_rejected(result):
-		# Fall back to the tvdb id for shows if tmdb didn't resolve. 
+		logger('simkl', '%s rejected (key=%s) payload=%s response=%s' % (url, key, data, result))
+		# Fall back to the tvdb id for shows if tmdb didn't resolve.
 		if media != 'movies' and tvdb_id not in (0, '0', None) and key != 'tvdb':
 			return simkl_mark_watched(action, media, tvdb_id, 0, season, episode, 'tvdb', watched_at, show_seasons)
 		return False
+	_echo_watched_status(action, media, media_id, key)
 	return True
 
 def simkl_add_to_list(media_type, media_id, to='plantowatch', key='tmdb', remove=False):
@@ -487,7 +497,11 @@ def simkl_add_to_list(media_type, media_id, to='plantowatch', key='tmdb', remove
 	result = call_simkl(url, data=data)
 	if result is None: return notification('Error', 3000) or False
 	notification('Success', 3000)
-	simkl_sync_activities(bypass_throttle=True)
+	# Local echo instead of a sync-after-write
+	if not _echo_list_change(bucket, media_id, key, None if remove else to, remove):
+		try: simkl_delta_sync(_status_watermark())
+		except: pass
+		clear_simkl_status_data()
 	return result
 
 def simkl_scrobble(action, media, media_id, percent, season=None, episode=None, key='tmdb'):
@@ -516,6 +530,55 @@ def _echo_pause(result, media, media_id, percent, season=None, episode=None):
 			s, n = int(ep.get('season', season)), int(ep.get('number', episode))
 		except: s, n = int(season), int(episode)
 		simkl_watched_cache.upsert_progress(('episode', str(media_id), s, n, str(pct), 0, last_played, resume_id, title))
+
+def _echo_list_change(bucket, media_id, key, to, remove, only_if=None):
+	types = ('movies',) if bucket == 'movies' else ('shows', 'anime')
+	target, found, wrote = str(media_id), False, False
+	for t in types:
+		cached = simkl_data_cache.get('simkl_status_raw_%s' % t)
+		if not (isinstance(cached, dict) and isinstance(cached.get('items'), list)): continue
+		kept, hit, changed = [], False, False
+		for i in cached['items']:
+			node = i.get('movie') or i.get('show') or i
+			ids = _ids_object(node.get('ids', {}) or {})
+			if str(ids.get(key, '')) != target:
+				kept.append(i)
+				continue
+			hit = True
+			if remove:
+				changed = True
+				continue
+			if only_if is not None and i.get('status') != only_if:
+				kept.append(i)
+				continue
+			if i.get('status') != to:
+				i = dict(i)
+				i['status'] = to
+				changed = True
+			kept.append(i)
+		if not hit: continue
+		found = True
+		if not changed: continue
+		simkl_data_cache.set('simkl_status_raw_%s' % t, {'ts': cached.get('ts'), 'removed_ts': cached.get('removed_ts'), 'items': kept})
+		wrote = True
+	if wrote: clear_simkl_status_data()
+	return found
+
+def _echo_watched_status(action, media, media_id, key):
+	try:
+		if action != 'mark_as_watched': return
+		if media == 'movies': _echo_list_change('movies', media_id, key, 'completed', False)
+		elif media == 'shows': _echo_list_change('shows', media_id, key, 'completed', False)
+		else: _echo_list_change('shows', media_id, key, 'watching', False, only_if='plantowatch')
+	except: pass
+
+def _status_watermark():
+	# Last-known activities stamp, used as date_from for a targeted delta.
+	try:
+		cached = simkl_data_cache.get('simkl_get_activity')
+		if isinstance(cached, dict): return cached.get('all') or EPOCH
+	except: pass
+	return EPOCH
 
 def simkl_progress(action, media, media_id, percent, season=None, episode=None, resume_id=None, refresh_tracker=False):
 	if action == 'clear_progress': return
@@ -557,6 +620,11 @@ def _current_activities():
 	now = time.time()
 	if _activities_memo[1] is not None and now - _activities_memo[0] < ACTIVITIES_MEMO_SECONDS:
 		return _activities_memo[1]
+	if _sync_throttled():
+		cached = simkl_data_cache.get('simkl_get_activity')
+		if isinstance(cached, dict):
+			_activities_memo[0], _activities_memo[1] = now, cached
+			return cached
 	act = simkl_get_activity()
 	if isinstance(act, dict): _activities_memo[0], _activities_memo[1] = now, act
 	return act
@@ -821,9 +889,11 @@ def import_from_trakt(params):
 	except Exception as e: logger('SIMKL IMPORT ERROR', e)
 	try: pd.close()
 	except: pass
+	# The one and only sync of the sign-in + import flow, once every block has been sent.
 	simkl_sync_activities(force_update=True)
 	kodi_utils.ok_dialog(heading='Trakt to Simkl Import', text='[B]Added:[/B] %s   [B]Not Found:[/B] %s' % (added, not_found))
 	kodi_refresh()
+	return True
 
 def _chunk(seq, size):
 	for i in range(0, len(seq), size): yield seq[i:i + size]

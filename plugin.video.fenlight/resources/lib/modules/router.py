@@ -168,7 +168,7 @@ def routing(sys):
 			return ad_cloud(_get('id', None))
 		if mode == 'alldebrid.browse_ad_cloud':
 			from indexers.alldebrid import browse_ad_cloud
-			return browse_ad_cloud(_get('folder'))
+			return browse_ad_cloud(_get('id'))
 		if mode == 'alldebrid.resolve_ad':
 			from indexers.alldebrid import resolve_ad
 			return resolve_ad(params)
