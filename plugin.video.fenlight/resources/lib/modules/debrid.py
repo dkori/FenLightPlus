@@ -40,7 +40,35 @@ def cached_check(hash_list, cached_hashes, debrid):
 	return cached_list, unchecked_list
 
 def RD_check(hash_list, cached_hashes):
-	return hash_list
+	cached_hashes, unchecked_hashes = cached_check(hash_list, cached_hashes, 'rd')
+	if unchecked_hashes:
+		rd_api = RealDebridAPI()
+		process_list = []
+		process_append = process_list.append
+		cached_append = cached_hashes.append
+		try:
+			# RD instantAvailability has URL length limits, check in batches
+			batch_size = 100
+			for i in range(0, len(unchecked_hashes), batch_size):
+				batch = unchecked_hashes[i:i+batch_size]
+				results = rd_api.check_cache(batch)
+				if not results or not isinstance(results, dict):
+					for h in batch: process_append((h, 'False'))
+					continue
+				for h in batch:
+					cached = 'False'
+					try:
+						if h in results:
+							info = results[h]
+							if isinstance(info, dict) and len(info.get('rd', [])) > 0:
+								cached_append(h)
+								cached = 'True'
+					except: pass
+					process_append((h, cached))
+		except:
+			for h in unchecked_hashes: process_append((h, 'False'))
+		add_to_local_cache(process_list, 'rd')
+	return cached_hashes
 
 def AD_check(hash_list, cached_hashes):
 	return hash_list
