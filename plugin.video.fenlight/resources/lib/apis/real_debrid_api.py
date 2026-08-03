@@ -235,6 +235,8 @@ class RealDebridAPI:
 				return None
 			if 'error' in torrent:
 				kodi_utils.logger('RD resolve_magnet', 'add_magnet error: %s' % str(torrent))
+				if torrent.get('error_code') == 34:  # too_many_requests
+					sleep(3000)
 				return None
 			if 'id' not in torrent:
 				kodi_utils.logger('RD resolve_magnet', 'add_magnet response missing id. Response: %s' % str(torrent))
