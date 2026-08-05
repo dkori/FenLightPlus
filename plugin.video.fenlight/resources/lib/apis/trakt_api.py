@@ -285,26 +285,26 @@ def trakt_revoke_authentication(dummy=''):
 
 def trakt_movies_trending(page_no):
 	string = 'trakt_movies_trending_%s' % page_no
-	params = {'path': 'movies/trending/%s', 'params': {'limit': 20}, 'page_no': page_no}
+	params = {'path': 'movies/trending/%s', 'params': {'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_movies_trending_recent(page_no):
 	current_year = get_datetime().year
 	years = '%s-%s' % (str(current_year-1), str(current_year))
 	string = 'trakt_movies_trending_recent_%s' % page_no
-	params = {'path': 'movies/trending/%s', 'params': {'limit': 20, 'years': years}, 'page_no': page_no}
+	params = {'path': 'movies/trending/%s', 'params': {'limit': 20, 'years': years}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 	
 def trakt_movies_trending_uk(page_no):
 	string = 'trakt_movies_trending_uk_%s' % page_no
-	params = {'path': 'movies/trending/%s', 'params': {'limit': 20, 'countries': 'gb'}, 'page_no': page_no}
+	params = {'path': 'movies/trending/%s', 'params': {'limit': 20, 'countries': 'gb'}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_movies_trending_recent_uk(page_no):
 	current_year = get_datetime().year
 	years = '%s-%s' % (str(current_year-1), str(current_year))
 	string = 'trakt_movies_trending_recent_uk_%s' % page_no
-	params = {'path': 'movies/trending/%s', 'params': {'limit': 20, 'years': years, 'countries': 'gb'}, 'page_no': page_no}
+	params = {'path': 'movies/trending/%s', 'params': {'limit': 20, 'years': years, 'countries': 'gb'}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_movies_top10_boxoffice(page_no):
@@ -314,12 +314,12 @@ def trakt_movies_top10_boxoffice(page_no):
 
 def trakt_movies_most_watched(page_no):
 	string = 'trakt_movies_most_watched_%s' % page_no
-	params = {'path': 'movies/watched/daily/%s', 'params': {'limit': 20}, 'page_no': page_no}
+	params = {'path': 'movies/watched/daily/%s', 'params': {'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_movies_most_favorited(page_no):
 	string = 'trakt_movies_most_favorited%s' % page_no
-	params = {'path': 'movies/favorited/daily/%s', 'params': {'limit': 20}, 'page_no': page_no}
+	params = {'path': 'movies/favorited/daily/%s', 'params': {'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_recommendations(media_type):
@@ -330,68 +330,68 @@ def trakt_recommendations(media_type):
 
 def trakt_tv_trending(page_no):
 	string = 'trakt_tv_trending_%s' % page_no
-	params = {'path': 'shows/trending/%s', 'params': {'limit': 20}, 'page_no': page_no}
+	params = {'path': 'shows/trending/%s', 'params': {'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_tv_trending_recent(page_no):
 	current_year = get_datetime().year
 	years = '%s-%s' % (str(current_year-1), str(current_year))
 	string = 'trakt_tv_trending_recent_%s' % page_no
-	params = {'path': 'shows/trending/%s', 'params': {'limit': 20, 'years': years}, 'page_no': page_no}
+	params = {'path': 'shows/trending/%s', 'params': {'limit': 20, 'years': years}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 	
 def trakt_tv_trending_uk(page_no):
 	string = 'trakt_tv_trending_uk_%s' % page_no
-	params = {'path': 'shows/trending/%s', 'params': {'limit': 20, 'countries': 'gb'}, 'page_no': page_no}
+	params = {'path': 'shows/trending/%s', 'params': {'limit': 20, 'countries': 'gb'}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_tv_trending_recent_uk(page_no):
 	current_year = get_datetime().year
 	years = '%s-%s' % (str(current_year-1), str(current_year))
 	string = 'trakt_tv_trending_recent_uk_%s' % page_no
-	params = {'path': 'shows/trending/%s', 'params': {'limit': 20, 'years': years, 'countries': 'gb'}, 'page_no': page_no}
+	params = {'path': 'shows/trending/%s', 'params': {'limit': 20, 'years': years, 'countries': 'gb'}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_tv_most_watched(page_no):
 	string = 'trakt_tv_most_watched_%s' % page_no
-	params = {'path': 'shows/watched/daily/%s', 'params': {'limit': 20}, 'page_no': page_no}
+	params = {'path': 'shows/watched/daily/%s', 'params': {'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_tv_most_favorited(page_no):
 	string = 'trakt_tv_most_favorited_%s' % page_no
-	params = {'path': 'shows/favorited/daily/%s', 'params': {'limit': 20}, 'page_no': page_no}
+	params = {'path': 'shows/favorited/daily/%s', 'params': {'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_tv_certifications(certification, page_no):
 	string = 'trakt_tv_certifications_%s_%s' % (certification, page_no)
-	params = {'path': 'shows/collected/all%s', 'params': {'certifications': certification, 'limit': 20}, 'page_no': page_no}
+	params = {'path': 'shows/collected/all%s', 'params': {'certifications': certification, 'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params, expiration= EXPIRY_1_WEEK)
 
 def trakt_anime_trending(page_no):
 	string = 'trakt_anime_trending_%s' % page_no
-	params = {'path': 'shows/trending/%s', 'params': {'genres': 'anime', 'limit': 20}, 'page_no': page_no}
+	params = {'path': 'shows/trending/%s', 'params': {'genres': 'anime', 'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_anime_trending_recent(page_no):
 	current_year = get_datetime().year
 	years = '%s-%s' % (str(current_year-1), str(current_year))
 	string = 'trakt_anime_trending_recent_%s' % page_no
-	params = {'path': 'shows/trending/%s', 'params': {'genres': 'anime', 'limit': 20, 'years': years}, 'page_no': page_no}
+	params = {'path': 'shows/trending/%s', 'params': {'genres': 'anime', 'limit': 20, 'years': years}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_anime_most_watched(page_no):
 	string = 'trakt_anime_most_watched_%s' % page_no
-	params = {'path': 'shows/watched/daily/%s', 'params': {'genres': 'anime', 'limit': 20}, 'page_no': page_no}
+	params = {'path': 'shows/watched/daily/%s', 'params': {'genres': 'anime', 'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_anime_most_favorited(page_no):
 	string = 'trakt_anime_most_favorited_%s' % page_no
-	params = {'path': 'shows/favorited/daily/%s', 'params': {'genres': 'anime', 'limit': 20}, 'page_no': page_no}
+	params = {'path': 'shows/favorited/daily/%s', 'params': {'genres': 'anime', 'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params)
 
 def trakt_anime_certifications(certification, page_no):
 	string = 'trakt_anime_certifications_%s_%s' % (certification, page_no)
-	params = {'path': 'shows/collected/all%s', 'params': {'certifications': certification, 'genres': 'anime', 'limit': 20}, 'page_no': page_no}
+	params = {'path': 'shows/collected/all%s', 'params': {'certifications': certification, 'genres': 'anime', 'limit': 20}, 'page_no': page_no, 'with_page_count': True}
 	return lists_cache_object(get_trakt, string, params, expiration= EXPIRY_1_WEEK)
 
 def trakt_get_hidden_items(list_type):
@@ -797,7 +797,7 @@ def trakt_comments(media_type, imdb_id):
 	template, spoiler_template, date_format = '[B]%02d. [I]%s%s - %s[/I][/B][CR][CR]%s', '[B][COLOR red][CONTAINS SPOILERS][/COLOR][CR][/B]', '%Y-%m-%dT%H:%M:%S.000Z'
 	media_type = 'movies' if media_type in ('movie', 'movies') else 'shows'
 	string = 'trakt_comments_%s %s' % (media_type, imdb_id)
-	params = {'path': '%s/%s/comments', 'path_insert': (media_type, imdb_id), 'params': {'limit': 1000, 'sort': 'likes'}, 'pagination': False}
+	params = {'path': '%s/%s/comments', 'path_insert': (media_type, imdb_id), 'params': {'limit': 250, 'sort': 'likes'}, 'pagination': False}
 	return cache_object(_process, string, 'foo', False, 168)
 
 def trakt_progress_movies(progress_info):
@@ -893,9 +893,17 @@ def trakt_get_activity():
 
 def get_trakt(params):
 	if params.get('all_pages'): return get_trakt_all_pages(params)
-	result = call_trakt(params['path'] % params.get('path_insert', '') + '?limit=1000', params=params.get('params', {}), data=params.get('data'), is_delete=params.get('is_delete', False),
-						with_auth=params.get('with_auth', False), method=params.get('method'), pagination=params.get('pagination', True), page_no=params.get('page_no'))
-	return result[0] if params.get('pagination', True) else result
+	call_params = dict(params.get('params', {}))
+	if params.get('data') is None: call_params.setdefault('limit', 1000)
+	paginate = params.get('pagination', True)
+	result = call_trakt(params['path'] % params.get('path_insert', ''), params=call_params, data=params.get('data'), is_delete=params.get('is_delete', False),
+						with_auth=params.get('with_auth', False), method=params.get('method'), pagination=paginate, page_no=params.get('page_no'))
+	if not paginate: return result
+	if params.get('with_page_count'):
+		try: page_count = int(result[1])
+		except: page_count = None
+		return (result[0], page_count)
+	return result[0]
 
 def get_trakt_all_pages(params, limit=250, max_pages=200):
 	base_path = params['path'] % params.get('path_insert', '')
