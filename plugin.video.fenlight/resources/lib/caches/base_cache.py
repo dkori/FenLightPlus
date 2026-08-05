@@ -232,6 +232,10 @@ def clear_cache(cache_type, silent=False):
 		if not _confirm(): return
 		from caches.main_cache import main_cache
 		success = main_cache.delete_all_folderscrapers()
+	elif cache_type == 'intros':
+		if not _confirm(): return
+		from caches.main_cache import main_cache
+		success = main_cache.delete_intros()
 	elif cache_type == 'list':
 		if not _confirm(): return
 		from caches.lists_cache import lists_cache

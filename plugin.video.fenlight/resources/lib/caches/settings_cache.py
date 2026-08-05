@@ -153,7 +153,10 @@ def set_default(setting_ids):
 
 def set_boolean(params):
 	setting = params['setting_id']
-	set_setting(setting, boolean_dict[get_setting('fenlight.%s' % setting)])
+	new_value = boolean_dict[get_setting('fenlight.%s' % setting)]
+	set_setting(setting, new_value)
+	if setting == 'skip_segments' and new_value == 'true':
+		skip_segments_disclaimer()
 
 def set_string(params):
 	setting_id = params['setting_id']
@@ -200,6 +203,13 @@ def set_from_list(params):
 		from threading import Thread
 		from modules import tracking
 		Thread(target=tracking.sync_activities).start()
+
+def skip_segments_disclaimer():
+	# One-time notice, the first time the feature is turned on
+	if get_setting('fenlight.skip_segments.disclaimer_shown', 'false') == 'true': return
+	set_setting('skip_segments.disclaimer_shown', 'true')
+	ok_dialog(text='Skip Intro/Recap/Outro uses timestamps from IntroDB, an external community database. '
+					'These are crowd-sourced and may occasionally be missing or inaccurate.')
 
 def set_source_folder_path(params):
 	setting_id = params['setting_id']
@@ -488,6 +498,12 @@ default_settings = [
 {'setting_id': 'autoscrape_next_window_percentage', 'setting_type': 'action', 'setting_default': '95', 'min_value': '75', 'max_value': '99'},
 {'setting_id': 'autoscrape_use_chapters', 'setting_type': 'boolean', 'setting_default': 'true'},
 {'setting_id': 'auto_resume_episode', 'setting_type': 'action', 'setting_default': '0', 'settings_options': {'0': 'Never', '1': 'Always', '2': 'Autoplay Only'}},
+#==================== Skip Segments (IntroDB)
+{'setting_id': 'skip_segments', 'setting_type': 'boolean', 'setting_default': 'false'},
+{'setting_id': 'skip_intros', 'setting_type': 'boolean', 'setting_default': 'true'},
+{'setting_id': 'skip_recaps', 'setting_type': 'boolean', 'setting_default': 'true'},
+{'setting_id': 'skip_outros', 'setting_type': 'boolean', 'setting_default': 'false'},
+{'setting_id': 'skip_segments_dismiss', 'setting_type': 'action', 'setting_default': '8', 'min_value': '3', 'max_value': '30'},
 #==================== Playback Utilities
 {'setting_id': 'playback.limit_resolve', 'setting_type': 'boolean', 'setting_default': 'false'},
 {'setting_id': 'playback.volumecheck_enabled', 'setting_type': 'boolean', 'setting_default': 'false'},
@@ -499,6 +515,7 @@ default_settings = [
 #=========================================================================================#
 {'setting_id': 'widget_refresh_timer_name', 'setting_type': 'string', 'setting_default': 'Off'},
 {'setting_id': 'mpaa_region_display_name', 'setting_type': 'string', 'setting_default': 'United States'},
+{'setting_id': 'skip_segments.disclaimer_shown', 'setting_type': 'string', 'setting_default': 'false'},
 {'setting_id': 'external_scraper.module', 'setting_type': 'string', 'setting_default': 'empty_setting'},
 {'setting_id': 'trakt.next_daily_clear', 'setting_type': 'string', 'setting_default': '0'},
 {'setting_id': 'trakt.expires', 'setting_type': 'string', 'setting_default': '0'},

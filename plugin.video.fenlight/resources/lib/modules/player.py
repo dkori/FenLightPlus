@@ -47,6 +47,7 @@ class FenLightPlayer(xbmc_player):
 					else:
 						self.seekTime(self.getTime())
 				except Exception: pass
+				self.start_skip_watcher()
 				self.monitor()
 			else:
 				self.sources_object.playback_successful = self.playback_successful
@@ -293,3 +294,56 @@ class FenLightPlayer(xbmc_player):
 		self.clear_playback_properties()
 		notification('Playback Failed', 3500)
 		return False
+
+	def start_skip_watcher(self):
+		try:
+			if self.is_generic or self.media_type != 'episode': return
+			skip_settings = st.skip_segment_settings()
+			if not skip_settings: return
+			Thread(target=self._skip_watcher, args=(skip_settings,)).start()
+		except: pass
+
+	def _play_next_will_fire(self):
+		try:
+			obj = self.sources_object
+			if any((obj.random_continual, obj.random, obj.disable_autoplay_next_episode)): return False
+			if obj.autoplay_nextep or obj.autoscrape_nextep: return True
+			return bool(self.num_episodes and int(self.num_episodes) > 1)
+		except: return False
+
+	def _skip_watcher(self, skip_settings):
+		try:
+			kinds = set(skip_settings['kinds'])
+			if 'outro' in kinds and self._play_next_will_fire(): kinds.discard('outro')
+			if not kinds or not self.imdb_id: return
+			from apis import skip_intro
+			dismiss = skip_settings['dismiss']
+			windows, handled, waited = None, set(), 0.0
+			while self.isPlayingVideo():
+				try: total_time, curr_time = self.getTotalTime(), self.getTime()
+				except: sleep(500); continue
+				if not total_time: sleep(500); continue
+				if windows is None:
+					windows = skip_intro.get_skip_windows(self.imdb_id, self.season, self.episode, total_time, kinds)
+					if not windows:
+						windows = None
+						waited += 0.5
+						if waited >= 30: return
+						sleep(500); continue
+				for w in windows:
+					if w['kind'] in handled: continue
+					if curr_time >= w['end']: handled.add(w['kind']); continue  # already past (e.g. resume)
+					if curr_time >= w['start']:
+						handled.add(w['kind'])
+						self._do_skip(w, dismiss)
+						break
+				if len(handled) >= len(windows): return
+				sleep(500)
+		except: pass
+
+	def _do_skip(self, window, dismiss):
+		try:
+			from windows.base_window import open_window
+			choice = open_window(('windows.skip_intro', 'SkipIntro'), 'skip_intro.xml', kind=window['kind'], seconds=dismiss, meta=self.meta)
+			if choice == 'skip' and self.isPlayingVideo(): self.seekTime(window['end'])
+		except: pass
