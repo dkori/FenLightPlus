@@ -178,18 +178,31 @@ class RealDebridAPI:
 
 	def create_transfer(self, magnet_url):
 		from modules.source_utils import supported_video_extensions
+		torrent_id = None
 		try:
 			extensions = supported_video_extensions()
 			torrent = self.add_magnet(magnet_url)
+			if not torrent or not isinstance(torrent, dict) or 'id' not in torrent:
+				kodi_utils.logger('RD create_transfer', 'add_magnet failed. Response: %s' % str(torrent))
+				return 'failed'
 			torrent_id = torrent['id']
 			info = self.torrent_info(torrent_id)
+			if not info or 'files' not in info:
+				kodi_utils.logger('RD create_transfer', 'torrent_info failed. Response: %s' % str(info))
+				self.delete_torrent(torrent_id)
+				return 'failed'
 			files = info['files']
 			torrent_keys = [str(item['id']) for item in files if item['path'].lower().endswith(tuple(extensions))]
+			if not torrent_keys:
+				kodi_utils.logger('RD create_transfer', 'No video files found in torrent. Files: %s' % str([f['path'] for f in files]))
+				self.delete_torrent(torrent_id)
+				return 'failed'
 			torrent_keys = ','.join(torrent_keys)
 			self.add_torrent_select(torrent_id, torrent_keys)
 			return 'success'
-		except:
-			self.delete_torrent(torrent_id)
+		except Exception as e:
+			kodi_utils.logger('RD create_transfer', 'Exception: %s' % str(e))
+			if torrent_id: self.delete_torrent(torrent_id)
 			return 'failed'
 
 	def add_torrent_select(self, torrent_id, file_ids):
@@ -217,7 +230,17 @@ class RealDebridAPI:
 		torrent_id = None
 		try:
 			torrent = self.add_magnet(magnet_url)
-			if 'error' in torrent: return None
+			if not torrent or not isinstance(torrent, dict):
+				kodi_utils.logger('RD resolve_magnet', 'add_magnet returned invalid response: %s' % str(torrent))
+				return None
+			if 'error' in torrent:
+				kodi_utils.logger('RD resolve_magnet', 'add_magnet error: %s' % str(torrent))
+				if torrent.get('error_code') == 34:  # too_many_requests
+					sleep(3000)
+				return None
+			if 'id' not in torrent:
+				kodi_utils.logger('RD resolve_magnet', 'add_magnet response missing id. Response: %s' % str(torrent))
+				return None
 			torrent_id = torrent['id']
 			self.add_torrent_select(torrent_id, 'all')
 			torrent_info = self.user_cloud_info_check(torrent_id)
@@ -266,7 +289,8 @@ class RealDebridAPI:
 				if not store_to_cloud: Thread(target=self.delete_torrent, args=(torrent_id,)).start()
 				return file_url
 			else: self.delete_torrent(torrent_id)
-		except:
+		except Exception as e:
+			kodi_utils.logger('RD resolve_magnet', 'Exception for "%s": %s' % (title, str(e)))
 			if torrent_id: self.delete_torrent(torrent_id)
 			return None
 
@@ -338,7 +362,9 @@ class RealDebridAPI:
 			if self.refresh_token(): response = self._post(original_url, post_data)
 			else: return None
 		try: return response.json()
-		except: return response
+		except:
+			kodi_utils.logger('RD _post', 'Non-JSON response for %s: [%s] %s' % (original_url, response.status_code, response.text[:200]))
+			return response
 
 	def clear_cache(self, clear_hashes=True):
 		try:

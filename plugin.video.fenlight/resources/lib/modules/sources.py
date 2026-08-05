@@ -816,7 +816,11 @@ class Sources():
 		debrid_function = self.debrid_importer(debrid_provider)
 		store_to_cloud = store_resolved_to_cloud(debrid_provider, pack)
 		try: url = debrid_function().resolve_magnet(item_url, _hash, store_to_cloud, title, season, episode)
-		except: url = None
+		except Exception as e:
+			kodi_utils.logger('resolve_cached', 'Exception for %s [%s]: %s' % (title, debrid_provider, str(e)))
+			url = None
+		if not url:
+			kodi_utils.logger('resolve_cached', 'Failed to resolve %s [%s] hash=%s' % (title, debrid_provider, _hash[:16] if _hash else 'N/A'))
 		return url
 
 	def resolve_internal(self, scrape_provider, item_id, url_dl, direct_debrid_link=False):
