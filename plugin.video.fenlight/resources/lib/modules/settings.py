@@ -63,6 +63,18 @@ def authorized_debrid_check(debrid_service):
 def playback_settings():
 	return (int(get_setting('fenlight.playback.watched_percent', '90')), int(get_setting('fenlight.playback.resume_percent', '5')))
 
+def skip_segment_settings():
+	# Read during playback setup, so it must never raise — a bad stored value degrades to "feature off".
+	try:
+		if get_setting('fenlight.skip_segments', 'false') != 'true': return None
+		kinds = set()
+		if get_setting('fenlight.skip_intros', 'true') == 'true': kinds.add('intro')
+		if get_setting('fenlight.skip_recaps', 'true') == 'true': kinds.add('recap')
+		if get_setting('fenlight.skip_outros', 'false') == 'true': kinds.add('outro')
+		if not kinds: return None
+		return {'kinds': kinds, 'dismiss': int(get_setting('fenlight.skip_segments_dismiss', '8'))}
+	except: return None
+
 def limit_resolve():
 	return get_setting('fenlight.playback.limit_resolve', 'false') == 'true'
 

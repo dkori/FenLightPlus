@@ -5,15 +5,13 @@ from modules.kodi_utils import sleep, confirm_dialog, close_all_dialog
 # from modules.kodi_utils import logger
 
 DELETE = 'DELETE FROM simkl_data WHERE id=?'
-DELETE_LIKE = 'DELETE FROM simkl_data WHERE id LIKE "%s"'
+DELETE_LIKE = 'DELETE FROM simkl_data WHERE id LIKE ?'
 WATCHED_INSERT = 'INSERT OR IGNORE INTO watched VALUES (?, ?, ?, ?, ?, ?)'
 WATCHED_DELETE = 'DELETE FROM watched WHERE db_type = ?'
 SHOW_DELETE = 'DELETE FROM watched WHERE db_type = ? AND media_id = ?'
 SEASONS_SELECT = 'SELECT DISTINCT season FROM watched WHERE db_type = ? AND media_id = ?'
 PROGRESS_INSERT = 'INSERT OR IGNORE INTO progress VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 PROGRESS_DELETE = 'DELETE FROM progress WHERE db_type = ?'
-STATUS_INSERT = 'INSERT INTO watched_status VALUES (?, ?, ?)'
-STATUS_DELETE = 'DELETE FROM watched_status'
 BASE_DELETE = 'DELETE FROM %s'
 SC_BASE_GET = 'SELECT data FROM simkl_data WHERE id = ?'
 SC_BASE_SET = 'INSERT OR REPLACE INTO simkl_data (id, data) VALUES (?, ?)'
@@ -110,30 +108,18 @@ def cache_simkl_object(function, string, url):
 	simkl_cache.set(string, result)
 	return result
 
-def reset_activity(latest_activities):
-	string = 'simkl_get_activity'
-	try:
-		dbcon = connect_database('simkl_db')
-		data = dbcon.execute(SC_BASE_GET, (string,)).fetchone()
-		if data: cached_data = eval(data[0])
-		else: cached_data = default_activities()
-		dbcon.execute(DELETE, (string,))
-		simkl_cache.set(string, latest_activities)
-	except: cached_data = default_activities()
-	return cached_data
-
 def clear_simkl_status_data(status=None):
 	string = 'simkl_status_%s' % status if status else 'simkl_status_%'
 	try:
 		dbcon = connect_database('simkl_db')
 		if status: dbcon.execute(DELETE, (string,))
-		else: dbcon.execute(DELETE_LIKE % string)
+		else: dbcon.execute(DELETE_LIKE, (string,))
 	except: pass
 
 def clear_simkl_calendar():
 	try:
 		dbcon = connect_database('simkl_db')
-		dbcon.execute(DELETE_LIKE % 'simkl_get_my_calendar_%')
+		dbcon.execute(DELETE_LIKE, ('simkl_get_my_calendar_%',))
 	except: return
 
 def clear_all_simkl_cache_data(silent=False, refresh=True):

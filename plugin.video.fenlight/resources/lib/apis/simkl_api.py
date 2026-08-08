@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import json
 import time
 import requests
 from threading import Lock
@@ -9,18 +8,17 @@ from caches.settings_cache import get_setting, set_setting
 from caches.main_cache import cache_object
 from modules import kodi_utils, settings
 from modules.metadata import movie_meta_external_id, tvshow_meta_external_id
-from modules.utils import make_thread_list, get_datetime, timedelta, copy2clip, jsondate_to_datetime as js2date
+from modules.utils import make_thread_list, timedelta, copy2clip, jsondate_to_datetime as js2date
 
-sleep, get_property = kodi_utils.sleep, kodi_utils.get_property
+sleep = kodi_utils.sleep
 logger, notification, xbmc_player, confirm_dialog = kodi_utils.logger, kodi_utils.notification, kodi_utils.xbmc_player, kodi_utils.confirm_dialog
 progress_dialog, kodi_refresh = kodi_utils.progress_dialog, kodi_utils.kodi_refresh
 simkl_user_active, simkl_client = settings.simkl_user_active, settings.simkl_client
 tmdb_api_key, show_unaired_watchlist = settings.tmdb_api_key, settings.show_unaired_watchlist
 simkl_watched_cache = simkl_cache.simkl_watched_cache
 simkl_data_cache = simkl_cache.simkl_cache
-cache_simkl_object, reset_activity = simkl_cache.cache_simkl_object, simkl_cache.reset_activity
+cache_simkl_object = simkl_cache.cache_simkl_object
 clear_all_simkl_cache_data = simkl_cache.clear_all_simkl_cache_data
-clear_simkl_status_data = simkl_cache.clear_simkl_status_data
 empty_setting_check = (None, 'empty_setting', '')
 API_ENDPOINT = 'https://api.simkl.com/%s'
 PIN_PAGE = 'https://simkl.com/pin/%s'
@@ -34,16 +32,15 @@ MOVIE_STATUSES = ('plantowatch', 'completed', 'dropped')
 SHOW_STATUSES = ('watching', 'plantowatch', 'hold', 'dropped', 'completed')
 SYNC_THROTTLE_SECONDS = 900
 SYNC_STAMP_KEY = 'simkl_last_activities_check'
+STATUS_RAW_KEY = 'simkl_raw_status_%s'
 
 _rate_lock = Lock()
 _last_request = [0.0]
-MIN_REQUEST_GAP = 0.5
-MIN_GET_GAP = 1.0
+MIN_REQUEST_GAP = 1.0
 
-def _rate_gate(is_get=False):
-	gap = MIN_GET_GAP if is_get else MIN_REQUEST_GAP
+def _rate_gate():
 	with _rate_lock:
-		wait = gap - (time.time() - _last_request[0])
+		wait = MIN_REQUEST_GAP - (time.time() - _last_request[0])
 		if wait > 0: sleep(int(wait * 1000))
 		_last_request[0] = time.time()
 
@@ -68,8 +65,7 @@ def call_simkl(path, params=None, data=None, is_delete=False, with_auth=True, me
 		token = get_setting('fenlight.simkl.token')
 		if token and token not in empty_setting_check: headers['Authorization'] = 'Bearer ' + token
 	def send_query():
-		is_write = method in ('post', 'delete') or data is not None or is_delete
-		_rate_gate(is_get=not is_write)
+		_rate_gate()
 		try:
 			if method == 'post' or data is not None:
 				return requests.post(API_ENDPOINT % path, params=call_params, json=data, headers=headers, timeout=timeout)
@@ -85,9 +81,6 @@ def call_simkl(path, params=None, data=None, is_delete=False, with_auth=True, me
 		response = send_query()
 		if response is None: return None
 		status_code = response.status_code
-		if 'oauth/pin' in path:
-			try: logger('SIMKL PIN DEBUG', 'path=%s status=%s body=%s' % (path, status_code, (response.text or '')[:300]))
-			except: pass
 		if status_code == 409 and is_scrobble:
 			return {'result': 'OK'}
 		if status_code == 401:
@@ -121,7 +114,6 @@ def call_simkl(path, params=None, data=None, is_delete=False, with_auth=True, me
 def simkl_get_pin():
 	CLIENT_ID = simkl_client()
 	if CLIENT_ID in empty_setting_check: return no_client_key()
-	logger('SIMKL PIN DEBUG', 'requesting pin with client_id=%s... (len %s)' % (str(CLIENT_ID)[:6], len(str(CLIENT_ID))))
 	return call_simkl('oauth/pin', with_auth=False)
 
 def simkl_get_pin_token(pin_info):
@@ -230,8 +222,9 @@ def get_simkl_tvshow_id(ids):
 def simkl_get_activity():
 	return call_simkl('sync/activities')
 
-def simkl_all_items(media_type, date_from=None, extended='full', extra=None):
-	params = {'extended': extended}
+def simkl_all_items(media_type, date_from=None, extended=None, extra=None):
+	params = {}
+	if extended: params['extended'] = extended
 	if date_from: params['date_from'] = date_from
 	if extra: params.update(extra)
 	result = call_simkl('sync/all-items/%s' % media_type, params=params)
@@ -240,8 +233,9 @@ def simkl_all_items(media_type, date_from=None, extended='full', extra=None):
 		if isinstance(result.get(key), list): return result[key]
 	return []
 
-def simkl_all_items_combined(date_from, extended='full', extra=None):
-	params = {'extended': extended, 'date_from': date_from}
+def simkl_all_items_combined(date_from, extended=None, extra=None):
+	params = {'date_from': date_from}
+	if extended: params['extended'] = extended
 	if extra: params.update(extra)
 	result = call_simkl('sync/all-items', params=params)
 	return result if isinstance(result, dict) else None
@@ -289,7 +283,7 @@ def simkl_indicators_movies(act=None):
 	_seed_status_raw('movies', items, act)
 
 def simkl_indicators_tv(act=None):
-	shows = simkl_all_items('shows', extra=TV_FLAGS)
+	shows = simkl_all_items('shows', extended='full', extra=TV_FLAGS)
 	anime = simkl_all_items('anime', extended='full_anime_seasons', extra=TV_FLAGS)
 	_seed_status_raw('shows', shows, act)
 	_seed_status_raw('anime', anime, act)
@@ -403,7 +397,8 @@ def simkl_sync_activities(force_update=False, bypass_throttle=False):
 	if not isinstance(latest, dict): return 'failed'
 	_activities_memo[0], _activities_memo[1] = time.time(), latest
 	previous = simkl_data_cache.get('simkl_get_activity')
-	cached = previous if isinstance(previous, dict) else simkl_cache.default_activities()
+	is_initial = not isinstance(previous, dict)
+	cached = simkl_cache.default_activities() if is_initial else previous
 	if not force_update and not _compare(latest.get('all', ''), cached.get('all', '')):
 		simkl_data_cache.set('simkl_get_activity', latest)
 		return 'not needed'
@@ -424,7 +419,7 @@ def simkl_sync_activities(force_update=False, bypass_throttle=False):
 	removed = (_compare(l_tv.get('removed_from_list', ''), c_tv.get('removed_from_list', ''))
 			or _compare(l_movies.get('removed_from_list', ''), c_movies.get('removed_from_list', ''))
 			or _compare(l_anime.get('removed_from_list', ''), c_anime.get('removed_from_list', '')))
-	if force_update or not cached.get('all'):
+	if force_update or is_initial:
 		simkl_indicators_movies(latest)
 		simkl_indicators_tv(latest)
 	elif removed:
@@ -497,11 +492,10 @@ def simkl_add_to_list(media_type, media_id, to='plantowatch', key='tmdb', remove
 	result = call_simkl(url, data=data)
 	if result is None: return notification('Error', 3000) or False
 	notification('Success', 3000)
-	# Local echo instead of a sync-after-write
+	# Local echo instead of a sync-after-write; on an echo miss the delta merge refreshes the raw caches.
 	if not _echo_list_change(bucket, media_id, key, None if remove else to, remove):
 		try: simkl_delta_sync(_status_watermark())
 		except: pass
-		clear_simkl_status_data()
 	return result
 
 def simkl_scrobble(action, media, media_id, percent, season=None, episode=None, key='tmdb'):
@@ -533,9 +527,9 @@ def _echo_pause(result, media, media_id, percent, season=None, episode=None):
 
 def _echo_list_change(bucket, media_id, key, to, remove, only_if=None):
 	types = ('movies',) if bucket == 'movies' else ('shows', 'anime')
-	target, found, wrote = str(media_id), False, False
+	target, found = str(media_id), False
 	for t in types:
-		cached = simkl_data_cache.get('simkl_status_raw_%s' % t)
+		cached = simkl_data_cache.get(STATUS_RAW_KEY % t)
 		if not (isinstance(cached, dict) and isinstance(cached.get('items'), list)): continue
 		kept, hit, changed = [], False, False
 		for i in cached['items']:
@@ -559,9 +553,7 @@ def _echo_list_change(bucket, media_id, key, to, remove, only_if=None):
 		if not hit: continue
 		found = True
 		if not changed: continue
-		simkl_data_cache.set('simkl_status_raw_%s' % t, {'ts': cached.get('ts'), 'removed_ts': cached.get('removed_ts'), 'items': kept})
-		wrote = True
-	if wrote: clear_simkl_status_data()
+		simkl_data_cache.set(STATUS_RAW_KEY % t, {'ts': cached.get('ts'), 'removed_ts': cached.get('removed_ts'), 'items': kept})
 	return found
 
 def _echo_watched_status(action, media, media_id, key):
@@ -581,7 +573,11 @@ def _status_watermark():
 	return EPOCH
 
 def simkl_progress(action, media, media_id, percent, season=None, episode=None, resume_id=None, refresh_tracker=False):
-	if action == 'clear_progress': return
+	if action == 'clear_progress':
+		try:
+			if resume_id and int(resume_id) > 0: call_simkl('sync/playback/%s' % int(resume_id), is_delete=True)
+		except: pass
+		return
 	try: result = simkl_scrobble('pause', media, media_id, percent, season, episode)
 	except: result = None
 	# Local echo instead of a re-sync.
@@ -632,10 +628,8 @@ def _current_activities():
 _SECTION_FOR_TYPE = {'shows': 'tv_shows', 'anime': 'anime', 'movies': 'movies'}
 
 def _status_cache_state(t, act):
-	section = act.get(_SECTION_FOR_TYPE.get(t, t)) if isinstance(act, dict) else None
-	ts = section.get('all') if isinstance(section, dict) else None
-	removed = section.get('removed_from_list') if isinstance(section, dict) else None
-	return simkl_data_cache.get('simkl_status_raw_%s' % t), ts, removed
+	ts, removed = _act_stamps(t, act)
+	return simkl_data_cache.get(STATUS_RAW_KEY % t), ts, removed
 
 def _node_simkl_id(item):
 	node = item.get('movie') or item.get('show') or item
@@ -666,24 +660,24 @@ def _seed_status_raw(t, items, act=None):
 	if items is None: return
 	act = act if isinstance(act, dict) else _current_activities()
 	ts, removed = _act_stamps(t, act)
-	simkl_data_cache.set('simkl_status_raw_%s' % t, {'ts': ts, 'removed_ts': removed, 'items': [_strip_item(i) for i in items]})
+	simkl_data_cache.set(STATUS_RAW_KEY % t, {'ts': ts, 'removed_ts': removed, 'items': [_strip_item(i) for i in items]})
 
 def _merge_status_raw_from_delta(delta, act=None):
 	if not isinstance(delta, dict): return
 	act = act if isinstance(act, dict) else _current_activities()
 	for t in ('shows', 'anime', 'movies'):
-		cached = simkl_data_cache.get('simkl_status_raw_%s' % t)
+		cached = simkl_data_cache.get(STATUS_RAW_KEY % t)
 		if not (isinstance(cached, dict) and 'items' in cached): continue
 		ts, removed = _act_stamps(t, act)
 		merged = _merge_status_items(cached['items'], [_strip_item(i) for i in (delta.get(t) or [])])
-		simkl_data_cache.set('simkl_status_raw_%s' % t, {'ts': ts, 'removed_ts': removed, 'items': merged})
+		simkl_data_cache.set(STATUS_RAW_KEY % t, {'ts': ts, 'removed_ts': removed, 'items': merged})
 
 def simkl_removals_reconcile(act):
 	result = call_simkl('sync/all-items', params={'extended': 'simkl_ids_only'})
 	if not isinstance(result, dict): return False
 	ok = True
 	for t in ('shows', 'anime', 'movies'):
-		cached = simkl_data_cache.get('simkl_status_raw_%s' % t)
+		cached = simkl_data_cache.get(STATUS_RAW_KEY % t)
 		if not (isinstance(cached, dict) and 'items' in cached):
 			ok = False
 			continue
@@ -703,7 +697,7 @@ def simkl_removals_reconcile(act):
 				continue
 			kept_items.append(i)
 		_ts, removed_ts = _act_stamps(t, act)
-		simkl_data_cache.set('simkl_status_raw_%s' % t, {'ts': cached.get('ts'), 'removed_ts': removed_ts, 'items': kept_items})
+		simkl_data_cache.set(STATUS_RAW_KEY % t, {'ts': cached.get('ts'), 'removed_ts': removed_ts, 'items': kept_items})
 	return ok
 
 def _status_all_items(t):
@@ -725,12 +719,12 @@ def _status_all_items(t):
 				result = None
 				for dt, d_cached, d_ts, d_removed in stale:
 					merged = _merge_status_items(d_cached['items'], [_strip_item(i) for i in (delta.get(dt) or [])])
-					simkl_data_cache.set('simkl_status_raw_%s' % dt, {'ts': d_ts, 'removed_ts': d_removed, 'items': merged})
+					simkl_data_cache.set(STATUS_RAW_KEY % dt, {'ts': d_ts, 'removed_ts': d_removed, 'items': merged})
 					if dt == t: result = merged
 				if result is not None: return result
 	items = simkl_all_items(t)
 	if items is not None:
-		simkl_data_cache.set('simkl_status_raw_%s' % t, {'ts': ts, 'removed_ts': removed, 'items': [_strip_item(i) for i in items]})
+		simkl_data_cache.set(STATUS_RAW_KEY % t, {'ts': ts, 'removed_ts': removed, 'items': [_strip_item(i) for i in items]})
 		return items
 	if isinstance(cached, dict): return cached.get('items', [])
 	return []
@@ -775,7 +769,8 @@ def simkl_get_my_calendar(recently_aired, current_date):
 			data = []
 			for feed in ('tv', 'anime'):
 				try:
-					resp = requests.get('https://data.simkl.in/calendar/v2/%s.json' % feed, timeout=timeout)
+					resp = requests.get('https://data.simkl.in/calendar/v2/%s.json' % feed, params=_base_params(),
+										headers={'User-Agent': '%s/%s' % (APP_NAME, addon_version())}, timeout=timeout)
 					payload = resp.json()
 				except: payload = {}
 				calendar = payload.get('calendar', []) if isinstance(payload, dict) else (payload or [])

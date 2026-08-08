@@ -2556,6 +2556,50 @@
                           <property name="setting_description">Choose when Fen Light+ will automatically resume playback of an in-progress Episode</property>
                           <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_from_list&amp;setting_id=auto_resume_episode)</onclick>
                       </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(70)</visible>
+                          <property name="setting_label">Skip Intro / Recap / Outro</property>
+                          <property name="setting_type">boolean</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.skip_segments)]</property>
+                          <property name="setting_description">Show a "Skip" button for opening titles, recaps and outros, using timestamps from IntroDB.</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_boolean&amp;setting_id=skip_segments)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(70)</visible>
+                          <visible>String.IsEqual(Window(10000).Property(fenlight.skip_segments),true)</visible>
+                          <property name="setting_label">    - Skip Intros</property>
+                          <property name="setting_type">boolean</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.skip_intros)]</property>
+                          <property name="setting_description">Offer to skip opening title sequences.</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_boolean&amp;setting_id=skip_intros)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(70)</visible>
+                          <visible>String.IsEqual(Window(10000).Property(fenlight.skip_segments),true)</visible>
+                          <property name="setting_label">    - Skip Recaps</property>
+                          <property name="setting_type">boolean</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.skip_recaps)]</property>
+                          <property name="setting_description">Offer to skip "previously on" recaps at the start of an episode.</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_boolean&amp;setting_id=skip_recaps)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(70)</visible>
+                          <visible>String.IsEqual(Window(10000).Property(fenlight.skip_segments),true)</visible>
+                          <property name="setting_label">    - Skip Outros</property>
+                          <property name="setting_type">boolean</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.skip_outros)]</property>
+                          <property name="setting_description">Offer to skip end credits/outros. Ignored at the end of an episode when Autoplay/Autoscrape Next Episode is active.</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_boolean&amp;setting_id=skip_outros)</onclick>
+                      </item>
+                      <item>
+                          <visible>Container(2000).HasFocus(70)</visible>
+                          <visible>String.IsEqual(Window(10000).Property(fenlight.skip_segments),true)</visible>
+                          <property name="setting_label">    - Auto-dismiss Skip Button After (seconds)</property>
+                          <property name="setting_type">numeric</property>
+                          <property name="setting_value">$INFO[Window(10000).Property(fenlight.skip_segments_dismiss)]</property>
+                          <property name="setting_description">How long the Skip button stays on screen before it disappears.</property>
+                          <onclick>RunPlugin(plugin://plugin.video.fenlight/?mode=settings_manager.set_numeric&amp;setting_id=skip_segments_dismiss)</onclick>
+                      </item>
         <!-- Playback Utilities -->
                       <item>
                           <visible>Container(2000).HasFocus(70)</visible>

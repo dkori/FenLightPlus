@@ -74,9 +74,13 @@ class Movies:
 			elif self.action in trakt_main:
 				self.id_type = 'trakt_dict'
 				data = function(page_no)
+				total_pages = None
+				if isinstance(data, tuple): data, total_pages = data
 				try: self.list = [i['movie']['ids'] for i in data]
 				except: self.list = [i['ids'] for i in data]
-				if self.action not in ('trakt_movies_top10_boxoffice', 'trakt_recommendations'): self.new_page = {'new_page': string(page_no + 1)}
+				if total_pages and total_pages > 2: self.total_pages = total_pages
+				if self.action not in ('trakt_movies_top10_boxoffice', 'trakt_recommendations'):
+					if not total_pages or page_no < total_pages: self.new_page = {'new_page': string(page_no + 1)}
 			elif self.action in trakt_personal or self.action in simkl_personal:
 				self.id_type = 'trakt_dict'
 				data = function('movies', page_no)

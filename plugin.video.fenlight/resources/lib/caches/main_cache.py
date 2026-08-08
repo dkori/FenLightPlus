@@ -32,6 +32,17 @@ class MainCache(BaseCache):
 			return True
 		except: return False
 
+	def delete_intros(self):
+		dbcon = self.manual_connect('maincache_db')
+		remove_list = [str(i[0]) for i in dbcon.execute(LIKE_SELECT % "'skip_intro.%'").fetchall()]
+		if not remove_list: return True
+		try:
+			dbcon.execute(LIKE_DELETE % "'skip_intro.%'")
+			dbcon.execute('VACUUM')
+			for item in remove_list: self.delete_memory_cache(str(item))
+			return True
+		except: return False
+
 	def clean_database(self):
 		try:
 			dbcon = self.manual_connect('maincache_db')

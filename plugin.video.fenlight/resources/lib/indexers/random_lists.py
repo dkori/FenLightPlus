@@ -24,6 +24,9 @@ nextpage_landscape, get_property, clear_property, sleep = kodi_utils.nextpage_la
 folder_path, random_valid_type_check = kodi_utils.folder_path, kodi_utils.random_valid_type_check
 random_episodes_check = {'build_in_progress_episode': 'episode.progress', 'build_recently_watched_episode': 'episode.recently_watched',
 'build_next_episode': 'episode.next', 'build_my_calendar': 'episode.trakt'}
+
+def trakt_items(result):
+	return result[0] if isinstance(result, tuple) else result
 movie_main = ('tmdb_movies_popular', 'tmdb_movies_popular_today','tmdb_movies_blockbusters','tmdb_movies_in_theaters', 'tmdb_movies_upcoming', 'tmdb_movies_latest_releases',
 'tmdb_movies_premieres', 'tmdb_movies_oscar_winners')
 movie_trakt_main = ('trakt_movies_trending', 'trakt_movies_trending_recent', 'trakt_movies_most_watched', 'trakt_movies_most_favorited',
@@ -118,7 +121,7 @@ class RandomLists():
 			info = random.choice(choice_list[self.action])
 			list_name = info['name']
 			if self.action in tvshow_trakt_special:
-				threads = list(make_thread_list(lambda x: self.random_results.extend(list_function(info['id'], x)), self.get_sample()))			
+				threads = list(make_thread_list(lambda x: self.random_results.extend(trakt_items(list_function(info['id'], x))), self.get_sample()))
 			else:
 				threads = list(make_thread_list(lambda x: self.random_results.extend(list_function(info['id'], x)['results']), self.get_sample()))
 			[i.join() for i in threads]
@@ -151,7 +154,7 @@ class RandomLists():
 		function_key, list_key = ('movies', 'movie') if self.menu_type == 'movie' else ('shows', 'show')
 		if not random_list:
 			list_function = self.get_function()
-			threads = list(make_thread_list(lambda x: self.random_results.extend(list_function(x)), [function_key,] \
+			threads = list(make_thread_list(lambda x: self.random_results.extend(trakt_items(list_function(x))), [function_key,] \
 						if self.action == 'trakt_recommendations' else self.get_sample()))
 			[i.join() for i in threads]
 			random_list = random.sample(self.random_results, min(len(self.random_results), 20))
